@@ -1,0 +1,11 @@
+file,phase_days,object_id,true_class,true_redshift
+spectrum_01.csv,-0.971446,452808,IIP,0.808779
+spectrum_02.csv,1.623343,452808,IIP,0.808779
+spectrum_03.csv,4.631173,452808,IIP,0.808779
+spectrum_04.csv,15.326952,452808,IIP,0.808779
+spectrum_05.csv,18.655496,452808,IIP,0.808779
+spectrum_06.csv,47.573401,452808,IIP,0.808779
+spectrum_07.csv,51.245602,452808,IIP,0.808779
+spectrum_08.csv,54.018743,452808,IIP,0.808779
+spectrum_09.csv,68.438526,452808,IIP,0.808779
+spectrum_10.csv,70.395260,452808,IIP,0.808779
