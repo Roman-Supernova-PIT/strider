@@ -11,21 +11,23 @@ The trained model and a few example objects are included here.
 
 ## Install
 
-Python 3.11 or newer.
+STRIDER needs Python 3.11 or newer. A separate environment keeps it isolated
+from your system Python:
 
 ```bash
 git clone https://github.com/mdixon741/strider.git
 cd strider
+
+conda create -n strider python=3.11
+conda activate strider
+
+python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
-The plain install handles CSV and text spectra. Two optional add-ons pull in extra
-libraries only if you need them — evidence-map plots (matplotlib) and FITS input
-(astropy):
-
-```bash
-python -m pip install -e ".[plot,fits]"
-```
+If you already have an active Python 3.11 environment, skip the two `conda`
+commands. The install includes CSV, text, NPZ and FITS input, along with the
+plotting packages.
 
 Check the model loaded:
 
@@ -77,6 +79,13 @@ strider classify spectrum.txt --phase -7
 
 STRIDER also reads `.npz` and FITS files.
 
+For time series with `flux_err`, plot how Ia versus non-Ia confidence changes
+with cumulative spectral signal-to-noise:
+
+```bash
+strider classify series.npz --plot-confidence confidence.png
+```
+
 ## What you get back
 
 - the type, with a ranked list and a calibrated probability for each class
@@ -95,9 +104,17 @@ Save the result as JSON, or draw an evidence map:
 
 ```bash
 strider classify examples/SN20088677_ou/spectrum_*.csv \
+  --output-text output/output.txt \
   --output-json output/result.json \
-  --plot output/evidence.png
+  --plot output/evidence.png \
+  --plot-evolution output/evidence.gif \
+  --plot-epochs output/timeseries
 ```
+
+`output.txt` is the concise overall result shown in the terminal. The PNG shows
+the final evidence using every supplied spectrum. The GIF adds the spectra in
+phase order, while the `timeseries` folder contains the same cumulative evidence
+map as a separate PNG after every epoch.
 
 Run `strider classify --help` for the phase, redshift-prior and wavelength
 controls. To run on the Roman SMDC, see [`deploy/smdc`](deploy/smdc/README.md).

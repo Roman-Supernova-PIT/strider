@@ -6,6 +6,8 @@ import argparse
 import json
 import os
 import sys
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -80,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
         "-v", "--verbose", action="store_true",
         help="Show input coverage, the gold-Ia cut, and redshift details",
     )
+    classify.add_argument(
+        "--output-text",
+        type=Path,
+        help="Write the concise overall result as text",
+    )
     classify.add_argument("--output-json", type=Path, help="Write the compact result")
     classify.add_argument("--diagnostics-json", type=Path, help="Write the full result")
     classify.add_argument("--plot", type=Path, help="Write an evidence-map PNG")
@@ -87,6 +94,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--plot-evolution",
         type=Path,
         help="Write a cumulative evidence GIF, one frame per added spectrum",
+    )
+    classify.add_argument(
+        "--plot-epochs",
+        type=Path,
+        help="Write one cumulative evidence-map PNG per epoch to a directory",
+    )
+    classify.add_argument(
+        "--plot-confidence",
+        type=Path,
+        help="Write Ia versus non-Ia probability against cumulative spectral S/N",
     )
     classify.add_argument("--json", action="store_true", help="Print compact JSON")
     return parser
@@ -152,7 +169,7 @@ def save_evidence_map(output: dict[str, Any], metadata: dict[str, Any], path: Pa
         import cmasher  # noqa: F401
         import matplotlib.pyplot as plt
     except ImportError as exc:
-        raise RuntimeError('Evidence maps need: pip install ".[plot]"') from exc
+        raise RuntimeError("Evidence maps require matplotlib and cmasher") from exc
     from strider.plotting.evidence_map import evidence_map
 
     fig = plt.figure(figsize=(12.2, 9.4), dpi=160)
@@ -179,7 +196,9 @@ def save_evidence_evolution(
         import matplotlib.pyplot as plt
         from PIL import Image  # noqa: F401
     except ImportError as exc:
-        raise RuntimeError('Evidence GIFs need: pip install ".[plot]"') from exc
+        raise RuntimeError(
+            "Evidence GIFs require matplotlib, cmasher and Pillow"
+        ) from exc
     from strider.plotting.evidence_map import evidence_map
 
     total = len(outputs)
@@ -214,6 +233,83 @@ def save_evidence_evolution(
         dpi=120,
         savefig_kwargs={"facecolor": "white"},
     )
+    plt.close(fig)
+
+
+def save_evidence_epochs(
+    outputs: Sequence[dict[str, Any]],
+    metadata: dict[str, Any],
+    directory: Path,
+) -> list[Path]:
+    """Write the cumulative evidence map after each added spectrum."""
+    if not outputs:
+        raise ValueError("Epoch evidence maps need at least one spectrum")
+    directory.mkdir(parents=True, exist_ok=True)
+    cache = directory / ".matplotlib-cache"
+    os.environ.setdefault("MPLCONFIGDIR", str(cache))
+    os.environ.setdefault("XDG_CACHE_HOME", str(cache))
+    try:
+        import cmasher  # noqa: F401
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise RuntimeError("Evidence maps require matplotlib and cmasher") from exc
+    from strider.plotting.evidence_map import evidence_map
+
+    total = len(outputs)
+    paths: list[Path] = []
+    for frame_index, output in enumerate(outputs):
+        phases = np.asarray(output["spectra"]["phase_days"], dtype=float)
+        latest_phase = float(np.nanmax(phases))
+        phase_token = (
+            f"n{abs(latest_phase):.1f}"
+            if latest_phase < 0
+            else f"p{latest_phase:.1f}"
+        )
+        frame_metadata = dict(metadata)
+        frame_metadata["frame_label"] = (
+            f"{frame_index + 1} of {total} spectra"
+            f" · through phase {latest_phase:+.0f} d"
+        )
+        path = directory / f"epoch_{frame_index + 1:02d}_phases_{phase_token}d.png"
+        fig = plt.figure(figsize=(12.2, 9.4), dpi=160)
+        fig.patch.set_facecolor("white")
+        evidence_map(fig, out=output, meta=frame_metadata)
+        fig.savefig(path, facecolor=fig.get_facecolor())
+        plt.close(fig)
+        paths.append(path)
+    return paths
+
+
+def save_confidence_plot(
+    outputs: Sequence[dict[str, Any]],
+    data: SpectrumInput,
+    path: Path,
+) -> None:
+    if data.flux_err is None:
+        raise ValueError("--plot-confidence needs flux_err in the input")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cache = path.parent / ".matplotlib-cache"
+    os.environ.setdefault("MPLCONFIGDIR", str(cache))
+    os.environ.setdefault("XDG_CACHE_HOME", str(cache))
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise RuntimeError("Confidence plots require matplotlib") from exc
+    from strider.plotting.confidence import confidence_curve
+
+    fig, ax = plt.subplots(figsize=(7.2, 4.8), dpi=160)
+    confidence_curve(
+        ax,
+        outputs=outputs,
+        flux=data.flux,
+        flux_err=data.flux_err,
+        phase=data.phase,
+        true_class=data.metadata.get("true_class"),
+    )
+    object_id = str(data.metadata.get("object", "input"))
+    ax.set_title(object_id, loc="left", fontsize=14, fontweight="bold", pad=10)
+    fig.tight_layout()
+    fig.savefig(path, facecolor="white", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -336,6 +432,24 @@ def print_summary(
         print(f"{prefix} {name:<6} {probability:.3f}")
 
 
+def summary_text(
+    output: dict[str, Any],
+    metadata: dict[str, Any],
+    top_k: int,
+    *,
+    verbose: bool = False,
+) -> str:
+    buffer = StringIO()
+    with redirect_stdout(buffer):
+        print_summary(output, metadata, top_k, verbose=verbose)
+    return buffer.getvalue()
+
+
+def _write_text(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value.rstrip() + "\n")
+
+
 def _write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(json_safe(value), indent=2) + "\n")
@@ -353,11 +467,20 @@ def run_classify(args: argparse.Namespace) -> int:
     )
 
     model = load_model(model_path, device=args.device)
-    need_evidence = args.plot is not None or args.plot_evolution is not None
+    need_evidence = (
+        args.plot is not None
+        or args.plot_evolution is not None
+        or args.plot_epochs is not None
+    )
     output = _classify(model, data, args, return_evidence=need_evidence)
     compact = compact_result(output, metadata=data.metadata, checkpoint=model_path)
+    summary = summary_text(output, data.metadata, args.top_k, verbose=args.verbose)
     if not args.json:
-        print_summary(output, data.metadata, args.top_k, verbose=args.verbose)
+        print(summary, end="")
+    if args.output_text:
+        _write_text(args.output_text, summary)
+        if not args.json:
+            print(f"\nWrote summary: {args.output_text}")
     if args.output_json:
         _write_json(args.output_json, compact)
         if not args.json:
@@ -370,11 +493,24 @@ def run_classify(args: argparse.Namespace) -> int:
         save_evidence_map(output, data.metadata, args.plot)
         if not args.json:
             print(f"Wrote plot   : {args.plot}")
-    if args.plot_evolution:
+    evolution = None
+    if args.plot_evolution or args.plot_epochs or args.plot_confidence:
         evolution = _evolution_outputs(model, data, args, output)
+    if args.plot_evolution:
+        assert evolution is not None
         save_evidence_evolution(evolution, data.metadata, args.plot_evolution)
         if not args.json:
             print(f"Wrote GIF    : {args.plot_evolution}")
+    if args.plot_epochs:
+        assert evolution is not None
+        paths = save_evidence_epochs(evolution, data.metadata, args.plot_epochs)
+        if not args.json:
+            print(f"Wrote epochs : {args.plot_epochs} ({len(paths)} PNGs)")
+    if args.plot_confidence:
+        assert evolution is not None
+        save_confidence_plot(evolution, data, args.plot_confidence)
+        if not args.json:
+            print(f"Wrote S/N    : {args.plot_confidence}")
     if args.json:
         print(json.dumps(json_safe(compact), indent=2))
     return 0

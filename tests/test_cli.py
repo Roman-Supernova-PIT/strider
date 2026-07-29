@@ -21,6 +21,27 @@ def test_evidence_evolution_has_an_explicit_output():
     assert args.plot_evolution == Path("evidence.gif")
 
 
+def test_epoch_evidence_maps_have_an_explicit_output_directory():
+    args = build_parser().parse_args(
+        ["classify", "series.csv", "--plot-epochs", "output/timeseries"]
+    )
+    assert args.plot_epochs == Path("output/timeseries")
+
+
+def test_text_summary_has_an_explicit_output():
+    args = build_parser().parse_args(
+        ["classify", "series.csv", "--output-text", "output/output.txt"]
+    )
+    assert args.output_text == Path("output/output.txt")
+
+
+def test_confidence_plot_has_an_explicit_output():
+    args = build_parser().parse_args(
+        ["classify", "series.npz", "--plot-confidence", "confidence.png"]
+    )
+    assert args.plot_confidence == Path("confidence.png")
+
+
 @pytest.mark.model
 def test_default_summary_is_concise(capsys):
     inputs = [
