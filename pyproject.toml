@@ -10,20 +10,18 @@ readme = "README.md"
 requires-python = ">=3.11"
 authors = [{name = "Mitchell Dixon"}]
 dependencies = [
+    "astropy>=5.0",
+    "cmasher>=1.8",
+    "matplotlib>=3.7",
     "numpy>=1.24",
+    "pillow>=10",
     "torch>=2.0",
 ]
 
 [project.optional-dependencies]
-plot = [
-    "matplotlib>=3.7",
-    "cmasher>=1.8",
-    "pillow>=10",
-]
-fits = ["astropy>=5.0"]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.8",
+    "ruff==0.12.0",
 ]
 
 [project.scripts]

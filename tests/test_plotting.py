@@ -1,11 +1,22 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pytest
 
 from strider import load_model
 from strider.io import load_inputs
+from strider.plotting.confidence import cumulative_snr, epoch_snr
 from strider.plotting.evidence_map import evidence_map
+
+
+def test_snr_uses_median_per_epoch_and_quadrature_accumulation():
+    flux = np.asarray([[2.0, 4.0], [3.0, 6.0]])
+    error = np.asarray([[1.0, 2.0], [1.0, 2.0]])
+    phase = np.asarray([5.0, -5.0])
+
+    assert epoch_snr(flux, error) == pytest.approx([2.0, 3.0])
+    assert cumulative_snr(flux, error, phase) == pytest.approx([3.0, np.sqrt(13.0)])
 
 
 @pytest.mark.model
