@@ -15,6 +15,7 @@ dependencies = [
     "matplotlib>=3.7",
     "numpy>=1.24",
     "pillow>=10",
+    "PyYAML>=6",
     "torch>=2.0",
 ]
 
@@ -28,8 +29,8 @@ dev = [
 strider = "strider.cli:main"
 
 [project.urls]
-Repository = "https://github.com/mdixon741/strider"
-Issues = "https://github.com/mdixon741/strider/issues"
+Repository = "https://github.com/Roman-Supernova-PIT/strider"
+Issues = "https://github.com/Roman-Supernova-PIT/strider/issues"
 
 [tool.setuptools.packages.find]
 include = ["strider*"]

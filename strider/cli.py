@@ -58,7 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
         "--phase",
         nargs="+",
         type=float,
-        help="Rest-frame phase in days; give one value per input file.",
+        help="Legacy checkpoints only: rest-frame phase per input file.",
+    )
+    classify.add_argument(
+        "--time",
+        nargs="+",
+        type=float,
+        help="Current model packages: observer-frame time per input file.",
+    )
+    classify.add_argument(
+        "--peak-time",
+        type=float,
+        help="Optional measured observer-frame peak date for a current model package.",
     )
     classify.add_argument("--device", default="cpu", help="Torch device: cpu or cuda")
     classify.add_argument("--z-prior", nargs=2, type=float, metavar=("MEAN", "SIGMA"))
@@ -457,6 +468,8 @@ def _write_json(path: Path, value: Any) -> None:
 
 def run_classify(args: argparse.Namespace) -> int:
     model_path = args.model.expanduser().resolve()
+    if model_path.is_dir():
+        return _run_current_classify(args, model_path)
     # load_model rejects a missing/bad file; the provenance hash is taken in compact_result.
     data = load_inputs(args.input, phases=args.phase)
     data, _ = select_phases(
@@ -516,11 +529,174 @@ def run_classify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_current_classify(args: argparse.Namespace, model_path: Path) -> int:
+    """Run one self-contained current model package without legacy phase input."""
+    if args.phase is not None:
+        raise ValueError(
+            "Current model packages use observer time, not rest-frame --phase; "
+            "supply --time or an observer_time/mjd column"
+        )
+    if args.latest_phase is not None or args.phase_range or args.phase_list:
+        raise ValueError("Legacy phase-selection controls do not apply to current models")
+    unsupported_controls = {
+        "--z-prior": args.z_prior,
+        "--z-window": args.z_window,
+        "--wave-range": args.wave_range,
+        "--condition-class": args.condition_class,
+        "--uncalibrated": args.uncalibrated,
+    }
+    requested = [name for name, value in unsupported_controls.items() if value]
+    if requested:
+        raise ValueError(
+            "The current model-package path does not yet support: "
+            + ", ".join(requested)
+        )
+    plot_outputs = {
+        "--plot-evolution": args.plot_evolution,
+        "--plot-epochs": args.plot_epochs,
+        "--plot-confidence": args.plot_confidence,
+    }
+    requested_plots = [name for name, value in plot_outputs.items() if value]
+    if requested_plots:
+        raise ValueError(
+            "Current evidence-map output is being migrated; not yet supported: "
+            + ", ".join(requested_plots)
+        )
+
+    from strider.current_io import load_observed_inputs
+
+    data = load_observed_inputs(args.input, times=args.time)
+    model = load_model(model_path, device=args.device)
+    result = model.classify(
+        wavelength=data.wavelength,
+        flux=data.flux,
+        flux_error=data.flux_error,
+        observer_time=data.observer_time,
+        peak_time=args.peak_time,
+        return_joint=args.diagnostics_json is not None or args.plot is not None,
+    )
+    summary = _current_summary(
+        result,
+        object_id=str(data.metadata.get("object", "input")),
+        top_k=args.top_k,
+        verbose=args.verbose,
+    )
+    if not args.json:
+        print(summary, end="")
+    if args.output_text:
+        _write_text(args.output_text, summary)
+        if not args.json:
+            print(f"\nWrote summary: {args.output_text}")
+    if args.output_json:
+        _write_json(args.output_json, result)
+        if not args.json:
+            print(f"\nWrote result : {args.output_json}")
+    if args.diagnostics_json:
+        _write_json(args.diagnostics_json, result)
+        if not args.json:
+            print(f"Wrote details: {args.diagnostics_json}")
+    if args.plot:
+        from strider.current_plotting import save_current_evidence_map
+
+        save_current_evidence_map(
+            result,
+            data,
+            args.plot,
+            object_id=str(data.metadata.get("object", "input")),
+        )
+        if not args.json:
+            print(f"Wrote plot   : {args.plot}")
+    if args.json:
+        print(json.dumps(json_safe(result), indent=2))
+    return 0
+
+
+def _current_summary(
+    result: dict[str, Any],
+    *,
+    object_id: str,
+    top_k: int,
+    verbose: bool,
+) -> str:
+    classification = result["classification"]
+    redshift = result["redshift"]
+    signal = result["signal"]
+    input_block = result["input"]
+    ranked = sorted(
+        classification["probabilities"].items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    top_k = max(1, min(int(top_k), len(ranked)))
+    days = list(input_block["observer_days"])
+    visit_text = (
+        f"{input_block['visit_count']} spectrum"
+        if input_block["visit_count"] == 1
+        else f"{input_block['visit_count']} spectra"
+    )
+    if len(days) == 1:
+        time_text = "one observer date"
+    else:
+        time_text = f"{min(days):+.1f} to {max(days):+.1f} observer days"
+    primary = redshift["primary_basin"]
+    lines = [
+        f"STRIDER  {object_id}",
+        "─" * 50,
+        f"Input      {visit_text}, {time_text}",
+        "",
+        f"Class      {classification['class']:<8} {classification['confidence']:.3f}",
+        (
+            f"Redshift   {redshift['z_STRIDER']:.4f}   "
+            f"basin 68% [{primary['lower_68']:.4f}, {primary['upper_68']:.4f}]"
+        ),
+    ]
+    if signal["source_probability"] is not None:
+        lines.append(
+            f"Signal     {signal['grade']}   "
+            f"P(measurable source) {signal['source_probability']:.3f}"
+        )
+    elif verbose:
+        lines.append(
+            f"Signal     uncalibrated evidence score "
+            f"{signal['raw_evidence_score']:.3f}"
+        )
+    if verbose:
+        lines.append(
+            f"           class probabilities are {classification['probability_type']}"
+        )
+        if len(redshift["candidate_basins"]) > 1:
+            alternate = redshift["candidate_basins"][1]
+            lines.append(
+                f"           alternate redshift {alternate['peak_redshift']:.4f} "
+                f"(basin mass {alternate['mass']:.1%})"
+            )
+    lines.append("")
+    label = f"Top {top_k}"
+    for index, (name, probability) in enumerate(ranked[:top_k]):
+        prefix = f"{label:<10}" if index == 0 else " " * 10
+        lines.append(f"{prefix} {name:<8} {probability:.3f}")
+    return "\n".join(lines) + "\n"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "check-model":
             path = args.model.expanduser().resolve()
+            if path.is_dir():
+                model = load_model(path, device="cpu")
+                info = model.model_info
+                print("STRIDER model package verified")
+                print(f"  model       {info['model_name']}")
+                print(f"  directory   {path}")
+                print(f"  epoch       {info['checkpoint_epoch']}")
+                print(f"  classes     {len(info['classes'])}")
+                print(
+                    f"  redshift    {info['redshift_min']:g} - "
+                    f"{info['redshift_max']:g}"
+                )
+                print(f"  calibration {info['calibration_status']}")
+                return 0
             digest = verify_model(path)
             model = load_model(path, device="cpu")
             n_classes = len(model.metadata.class_names)

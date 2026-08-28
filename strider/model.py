@@ -865,20 +865,28 @@ def _add_friendly_output_blocks(
     out["spectra"] = spectra_block
 
 
-def load_model(checkpoint_path: str | Path, device: str = "cpu") -> STRIDER:
-    """Load a STRIDER checkpoint and return a ready-to-use model.
+def load_model(checkpoint_path: str | Path, device: str = "cpu") -> Any:
+    """Load a released STRIDER model and return a ready-to-use model.
 
     Parameters
     ----------
     checkpoint_path
-        Path to a STRIDER ``.pt`` checkpoint.
+        Path to either a legacy STRIDER ``.pt`` checkpoint or a current
+        self-contained STRIDER model-package directory.
     device
         Torch device ("cpu" or "cuda").
 
     Returns
     -------
-    A :class:`STRIDER` instance, ready for ``.classify()``.
+    A model instance ready for ``.classify()``. Current model packages accept
+    observer-frame wavelength, FLAM, FLAMERR and observation times. Legacy
+    checkpoints retain their historical rest-phase interface.
     """
+    checkpoint_path = Path(checkpoint_path)
+    if checkpoint_path.is_dir():
+        from strider.engine.deployment import load_model_package
+
+        return load_model_package(checkpoint_path, device=device)
     payload = load_checkpoint(checkpoint_path)
     metadata = CheckpointMetadata.from_dict(payload["metadata"])
     model = _build_underlying_model(payload, metadata, device=device)
