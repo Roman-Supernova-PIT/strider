@@ -49,3 +49,34 @@ def test_current_input_rejects_phase_without_observer_time(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="observer_time or mjd"):
         load_observed_inputs([path])
+
+
+def test_current_input_converts_microns_to_angstrom(tmp_path: Path) -> None:
+    path = tmp_path / "spectrum.csv"
+    path.write_text(
+        "mjd,wavelength,flux,flux_error\n"
+        "62000,0.75,1.0,0.5\n"
+        "62000,1.80,2.0,0.5\n"
+    )
+
+    data = load_observed_inputs([path], wavelength_unit="micron")
+
+    np.testing.assert_allclose(data.wavelength, [7500.0, 18000.0])
+
+
+def test_current_input_rejects_different_explicit_objects(tmp_path: Path) -> None:
+    first = tmp_path / "first.csv"
+    second = tmp_path / "second.csv"
+    first.write_text(
+        "object_id,mjd,wavelength,flux,flux_error\n"
+        "roman-1,62000,7500,1.0,0.5\n"
+        "roman-1,62000,8000,2.0,0.5\n"
+    )
+    second.write_text(
+        "object_id,mjd,wavelength,flux,flux_error\n"
+        "roman-2,62012,7500,1.5,0.6\n"
+        "roman-2,62012,8000,2.5,0.6\n"
+    )
+
+    with pytest.raises(ValueError, match="different objects"):
+        load_observed_inputs([first, second])

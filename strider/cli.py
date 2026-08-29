@@ -37,7 +37,10 @@ def _add_model_argument(parser: argparse.ArgumentParser) -> None:
         dest="model",
         type=Path,
         default=_default_model(),
-        help="STRIDER model file (default: models/strider.pt or STRIDER_MODEL).",
+        help=(
+            "STRIDER checkpoint file or model-package directory "
+            "(default: models/strider.pt or STRIDER_MODEL)."
+        ),
     )
 
 
@@ -565,7 +568,11 @@ def _run_current_classify(args: argparse.Namespace, model_path: Path) -> int:
 
     from strider.current_io import load_observed_inputs
 
-    data = load_observed_inputs(args.input, times=args.time)
+    data = load_observed_inputs(
+        args.input,
+        times=args.time,
+        wavelength_unit=args.wavelength_unit,
+    )
     model = load_model(model_path, device=args.device)
     result = model.classify(
         wavelength=data.wavelength,

@@ -1,13 +1,13 @@
 """STRIDER model components with a lazy public model import."""
 
-__all__ = ["Strider3", "measurement_inputs"]
+__all__ = ["StriderModel", "measurement_inputs"]
 
 
 def __getattr__(name: str):
-    if name == "Strider3":
-        from .strider import Strider3
+    if name == "StriderModel":
+        from .strider import StriderModel
 
-        return Strider3
+        return StriderModel
     if name == "measurement_inputs":
         from .strider import measurement_inputs
 

@@ -26,7 +26,10 @@ class ObservedSeriesInput:
 
 
 def load_observed_inputs(
-    paths: Sequence[str | Path], *, times: Sequence[float] | None = None
+    paths: Sequence[str | Path],
+    *,
+    times: Sequence[float] | None = None,
+    wavelength_unit: str = "angstrom",
 ) -> ObservedSeriesInput:
     """Load one object from NPZ or text files on a shared wavelength grid."""
     if not paths:
@@ -40,8 +43,19 @@ def load_observed_inputs(
         )
         for index, path in enumerate(paths)
     ]
+    loaded = [_convert_wavelength_unit(item, wavelength_unit) for item in loaded]
     if len(loaded) == 1:
         return loaded[0]
+    explicit_object_ids = {
+        str(item.metadata["object"])
+        for item in loaded
+        if bool(item.metadata.get("_object_id_supplied"))
+    }
+    if len(explicit_object_ids) > 1:
+        raise ValueError(
+            "Input files identify different objects: "
+            + ", ".join(sorted(explicit_object_ids))
+        )
     reference = loaded[0].wavelength
     for item in loaded[1:]:
         if item.wavelength.shape != reference.shape or not np.allclose(
@@ -58,8 +72,13 @@ def load_observed_inputs(
             [np.atleast_1d(item.observer_time) for item in loaded]
         ),
         metadata={
-            "object": loaded[0].metadata["object"],
+            "object": (
+                next(iter(explicit_object_ids))
+                if explicit_object_ids
+                else loaded[0].metadata["object"]
+            ),
             "source": [str(Path(path)) for path in paths],
+            "wavelength_unit": "angstrom",
         },
     )
 
@@ -117,13 +136,18 @@ def _load_observed_npz(path: Path, *, time: float | None) -> ObservedSeriesInput
             )
         if len(observer_time) != visits:
             raise ValueError("NPZ observer time count does not match its spectra")
-        object_id = str(data["object_id"].item()) if "object_id" in data else path.stem
+        object_id_supplied = "object_id" in data
+        object_id = str(data["object_id"].item()) if object_id_supplied else path.stem
         return ObservedSeriesInput(
             wavelength=np.asarray(data[wave_key], dtype=np.float32),
             flux=flux,
             flux_error=np.asarray(data[error_key], dtype=np.float32),
             observer_time=observer_time,
-            metadata={"object": object_id, "source": str(path)},
+            metadata={
+                "object": object_id,
+                "source": str(path),
+                "_object_id_supplied": object_id_supplied,
+            },
         )
 
 
@@ -201,5 +225,34 @@ def _load_observed_table(path: Path, *, time: float | None) -> ObservedSeriesInp
         flux=np.stack(fluxes),
         flux_error=np.stack(errors),
         observer_time=np.asarray(times, dtype=np.float64),
-        metadata={"object": object_id, "source": str(path)},
+        metadata={
+            "object": object_id,
+            "source": str(path),
+            "_object_id_supplied": bool(object_ids),
+        },
+    )
+
+
+def _convert_wavelength_unit(
+    data: ObservedSeriesInput, unit: str
+) -> ObservedSeriesInput:
+    requested = str(unit).lower()
+    if requested not in {"auto", "angstrom", "micron"}:
+        raise ValueError("wavelength_unit must be auto, angstrom, or micron")
+    wavelength = np.asarray(data.wavelength, dtype=np.float32)
+    if requested == "auto":
+        finite = wavelength[np.isfinite(wavelength)]
+        if finite.size == 0:
+            raise ValueError("wavelength must contain finite values")
+        requested = "micron" if float(np.nanmedian(np.abs(finite))) < 100.0 else "angstrom"
+    if requested == "micron":
+        wavelength = wavelength * np.float32(10_000.0)
+    metadata = dict(data.metadata)
+    metadata["wavelength_unit"] = "angstrom"
+    return ObservedSeriesInput(
+        wavelength=wavelength,
+        flux=data.flux,
+        flux_error=data.flux_error,
+        observer_time=data.observer_time,
+        metadata=metadata,
     )

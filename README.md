@@ -29,6 +29,10 @@ python -m pip install --upgrade pip
 python -m pip install -e .
 ```
 
+The source checkout contains the established model. Code-only wheel builds do
+not bundle the 51 MB checkpoint; when using such a build, download a released
+model separately and pass its path with `--model` or `STRIDER_MODEL`.
+
 Verify the included model:
 
 ```bash
@@ -96,11 +100,14 @@ roman-1,2,62012.0,7500.0,...,...
 roman-1,2,62012.0,7600.0,...,...
 ```
 
-- `wavelength` is observer-frame wavelength in Angstrom;
+- `wavelength` is the observer-frame wavelength-bin center in Angstrom;
 - `flux` is measured FLAM, in any consistent units;
 - `flux_error` is its reported one-sigma uncertainty and is required;
 - `mjd` or `observer_time` supplies one observer-frame date per visit; and
 - `epoch` or `visit` distinguishes spectra in a combined table.
+
+Micron input is also accepted with `--wavelength-unit micron`; `auto` recognizes
+ordinary micron and Angstrom ranges.
 
 One file per visit is also accepted. Supply its dates on the command line if
 they are not stored in the files:
@@ -166,6 +173,10 @@ Current model packages distinguish three products:
 Calibrated redshift regions may be disconnected when several solutions remain
 plausible. The loader refuses a calibration artifact fitted to a different
 configuration or checkpoint epoch.
+
+Evidence maps label the class bars as calibrated when calibration is present.
+The class-redshift heatmap remains the model joint density used to form the
+model-native redshift posterior and its calibrated coverage sets.
 
 ## Models and status
 

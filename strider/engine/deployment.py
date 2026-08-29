@@ -24,19 +24,43 @@ from strider.engine.calibration import (
     visit_band,
 )
 from strider.engine.config import resolved_config_sha256
-from strider.engine.model import Strider3, measurement_inputs
+from strider.engine.model import StriderModel, measurement_inputs
 from strider.engine.model.posterior import joint_probability
 from strider.engine.posterior_summary import posterior_basin_candidates
 from strider.engine.wavelength import log_wavelength_grid
 
 
 MODEL_PACKAGE_FORMAT = "strider-model-package-v1"
-_COMPATIBLE_MODEL_PACKAGE_FORMATS = {
-    MODEL_PACKAGE_FORMAT,
-    "strider3-model-package-v1",
-}
+CALIBRATION_FORMAT = "strider-calibration-v1"
 RESULT_FORMAT = "strider-inference-result-v1"
 _EPSILON = 1.0e-7
+_REQUIRED_PACKAGE_FILES = (
+    "weights.pt",
+    "config.resolved.yaml",
+    "model_info.json",
+    "calibration.json",
+    "redshift_grid.npy",
+    "wavelength_grid_angstrom.npy",
+    "preprocessing.yaml",
+    "onir_bank.npz",
+    "onir_features.yaml",
+    "environment.json",
+    "MODEL_CARD.md",
+    "SHA256SUMS",
+)
+_REQUIRED_MODEL_INFO_FIELDS = (
+    "format_version",
+    "model_name",
+    "config_sha256",
+    "checkpoint_epoch",
+    "classes",
+    "redshift_min",
+    "redshift_max",
+    "redshift_bins",
+    "redshift_spacing",
+    "redshift_prior",
+    "calibration_status",
+)
 
 
 @dataclass(frozen=True)
@@ -55,7 +79,7 @@ class DeployedStrider:
     """A verified STRIDER model package ready for arbitrary measured spectra."""
 
     package_dir: Path
-    model: Strider3
+    model: StriderModel
     config: dict[str, Any]
     model_info: dict[str, Any]
     calibration: dict[str, Any]
@@ -113,25 +137,15 @@ def load_model_package(
 ) -> DeployedStrider:
     """Verify and load a directory written by ``export-model``."""
     package_dir = Path(path).expanduser().resolve()
-    required = (
-        "weights.pt",
-        "config.resolved.yaml",
-        "model_info.json",
-        "calibration.json",
-        "redshift_grid.npy",
-        "wavelength_grid_angstrom.npy",
-        "preprocessing.yaml",
-        "onir_bank.npz",
-        "onir_features.yaml",
-        "SHA256SUMS",
-    )
-    missing = [name for name in required if not (package_dir / name).is_file()]
+    missing = [
+        name for name in _REQUIRED_PACKAGE_FILES if not (package_dir / name).is_file()
+    ]
     if missing:
         raise FileNotFoundError(
             f"Model package {package_dir} is missing: {', '.join(missing)}"
         )
     if verify_checksums:
-        _verify_checksums(package_dir)
+        _verify_checksums(package_dir, _REQUIRED_PACKAGE_FILES)
 
     config = _read_yaml(package_dir / "config.resolved.yaml")
     if not isinstance(config, dict):
@@ -144,20 +158,25 @@ def load_model_package(
         raise ValueError("Packaged checkpoint and resolved configuration do not match")
     if "model_state" not in checkpoint:
         raise ValueError("Packaged checkpoint does not contain model_state")
+    if "epoch" not in checkpoint:
+        raise ValueError("Packaged checkpoint does not identify its selected epoch")
 
     model_info = _read_json(package_dir / "model_info.json")
-    if model_info.get("format_version") not in _COMPATIBLE_MODEL_PACKAGE_FORMATS:
+    missing_info = [name for name in _REQUIRED_MODEL_INFO_FIELDS if name not in model_info]
+    if missing_info:
+        raise ValueError("model_info.json is missing: " + ", ".join(missing_info))
+    if model_info.get("format_version") != MODEL_PACKAGE_FORMAT:
         raise ValueError(
             f"Unsupported model-package format: {model_info.get('format_version')!r}"
         )
-    if model_info.get("config_sha256", config_digest) != config_digest:
+    if model_info["config_sha256"] != config_digest:
         raise ValueError("model_info.json and resolved configuration do not match")
     checkpoint_epoch = int(checkpoint.get("epoch", -1))
-    if int(model_info.get("checkpoint_epoch", checkpoint_epoch)) != checkpoint_epoch:
+    if int(model_info["checkpoint_epoch"]) != checkpoint_epoch:
         raise ValueError("model_info.json and checkpoint epoch do not match")
 
     runtime_config = _runtime_config(config, package_dir)
-    model = Strider3(runtime_config)
+    model = StriderModel(runtime_config)
     model.load_state_dict(checkpoint["model_state"])
     selected_device = _available_device(device)
     model.to(selected_device).eval()
@@ -168,6 +187,12 @@ def load_model_package(
         packaged_redshift, model_redshift, rtol=1.0e-6, atol=1.0e-7
     ):
         raise ValueError("Packaged redshift grid does not match the reconstructed model")
+    if int(model_info["redshift_bins"]) != len(model_redshift) or not np.isclose(
+        float(model_info["redshift_min"]), float(model_redshift[0])
+    ) or not np.isclose(
+        float(model_info["redshift_max"]), float(model_redshift[-1])
+    ):
+        raise ValueError("model_info.json redshift grid does not match the model")
     expected_wavelength = log_wavelength_grid(
         runtime_config["observation"]["wavelength_min"],
         runtime_config["observation"]["wavelength_max"],
@@ -180,6 +205,8 @@ def load_model_package(
         raise ValueError(
             "Packaged observer-wavelength grid does not match the resolved configuration"
         )
+    preprocessing = _read_yaml(package_dir / "preprocessing.yaml")
+    _validate_preprocessing(preprocessing, config=runtime_config)
 
     calibration = _read_json(package_dir / "calibration.json")
     _validate_calibration(
@@ -197,6 +224,12 @@ def load_model_package(
         calibration.get("classes", [])
     ) != list(model.class_names):
         raise ValueError("Calibration classes do not match the reconstructed model")
+    if str(model_info["redshift_spacing"]) != str(
+        runtime_config["model"].get("redshift_spacing", "linear")
+    ) or str(model_info["redshift_prior"]) != str(
+        runtime_config["model"].get("redshift_prior", "flat_z")
+    ):
+        raise ValueError("model_info.json redshift definition does not match the model")
     return DeployedStrider(
         package_dir=package_dir,
         model=model,
@@ -235,6 +268,13 @@ def prepare_observed_series(
         raise ValueError("observer_time must contain one value per spectrum")
     if len(times) == 0 or not np.isfinite(times).all():
         raise ValueError("observer_time must contain finite values")
+    maximum_visits = config["data"].get("max_visits")
+    if maximum_visits is not None and str(maximum_visits).lower() != "all":
+        limit = int(maximum_visits)
+        if len(times) > limit:
+            raise ValueError(
+                f"Model package supports at most {limit} visits; received {len(times)}"
+            )
 
     visit_order = np.argsort(times, kind="stable")
     times = times[visit_order]
@@ -278,7 +318,9 @@ def prepare_observed_series(
         scale = float(np.quantile(native_error, 0.25))
         if not np.isfinite(scale) or scale <= 0.0:
             raise ValueError(f"Spectrum {visit_index} has no positive uncertainty scale")
-        inside = (output_wave >= native_wave[0]) & (output_wave <= native_wave[-1])
+        inside = _deployment_wavelength_mask(
+            config["observation"], output_wave, native_wave, visit_index=visit_index
+        )
         if not inside.any():
             raise ValueError(
                 f"Spectrum {visit_index} does not overlap the model wavelength range"
@@ -448,7 +490,7 @@ def _validate_calibration(
         return
     if status != "fitted":
         raise ValueError(f"Unsupported calibration status: {status!r}")
-    if calibration.get("format_version") != "strider3-calibration-v1":
+    if calibration.get("format_version") != CALIBRATION_FORMAT:
         raise ValueError("Unsupported fitted calibration format")
     if calibration.get("config_sha256") != config_digest:
         raise ValueError("Calibration and resolved configuration do not match")
@@ -456,10 +498,11 @@ def _validate_calibration(
         raise ValueError("Calibration and checkpoint epoch do not match")
 
 
-def _verify_checksums(package_dir: Path) -> None:
+def _verify_checksums(package_dir: Path, required_files: Sequence[str]) -> None:
     lines = (package_dir / "SHA256SUMS").read_text(encoding="utf-8").splitlines()
     if not lines:
         raise ValueError("SHA256SUMS is empty")
+    listed: set[str] = set()
     for line in lines:
         try:
             expected, name = line.split(maxsplit=1)
@@ -468,11 +511,73 @@ def _verify_checksums(package_dir: Path) -> None:
         name = name.strip()
         if Path(name).name != name or name == "SHA256SUMS":
             raise ValueError(f"Unsafe model-package checksum path: {name!r}")
+        if name in listed:
+            raise ValueError(f"Duplicate model-package checksum path: {name!r}")
+        listed.add(name)
         path = package_dir / name
         if not path.is_file():
             raise FileNotFoundError(f"Checksummed model-package file is missing: {path}")
         if _sha256(path) != expected:
             raise ValueError(f"Checksum mismatch for model-package file: {name}")
+    required_payload = set(required_files) - {"SHA256SUMS"}
+    missing = sorted(required_payload - listed)
+    if missing:
+        raise ValueError("SHA256SUMS does not cover: " + ", ".join(missing))
+
+
+def _validate_preprocessing(value: Any, *, config: dict[str, Any]) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("preprocessing.yaml must contain a mapping")
+    if value.get("wavelength_frame") != "observer":
+        raise ValueError("Model package wavelength_frame must be observer")
+    if str(value.get("wavelength_unit", "")).lower() != "angstrom":
+        raise ValueError("Model package wavelength_unit must be Angstrom")
+    expected_error_channel = bool(config["model"].get("use_flux_error_channel", False))
+    if bool(value.get("flux_error_input")) != expected_error_channel:
+        raise ValueError("preprocessing.yaml disagrees on the FLAMERR input channel")
+
+
+def _template_support_policy(observation: dict[str, Any]) -> str:
+    configured = observation.get("template_support_policy")
+    legacy = observation.get("require_complete_wavelength_coverage")
+    if configured is None:
+        return "complete" if bool(legacy) else "retain"
+    policy = str(configured)
+    if policy not in {"complete", "retain"}:
+        raise ValueError("template_support_policy must be 'complete' or 'retain'")
+    if legacy is not None and bool(legacy) != (policy == "complete"):
+        raise ValueError(
+            "template_support_policy conflicts with require_complete_wavelength_coverage"
+        )
+    return policy
+
+
+def _deployment_wavelength_mask(
+    observation: dict[str, Any],
+    output_wave: np.ndarray,
+    native_wave: np.ndarray,
+    *,
+    visit_index: int,
+) -> np.ndarray:
+    """Match the training-time complete/retained template-support semantics."""
+    if _template_support_policy(observation) != "complete":
+        return (output_wave >= native_wave[0]) & (output_wave <= native_wave[-1])
+    edges = _wavelength_cell_edges(native_wave)
+    if edges[0] > output_wave[0] or edges[-1] < output_wave[-1]:
+        raise ValueError(
+            f"Spectrum {visit_index} does not provide complete native-bin support "
+            "over the model wavelength range"
+        )
+    return np.ones(output_wave.shape, dtype=bool)
+
+
+def _wavelength_cell_edges(centers: np.ndarray) -> np.ndarray:
+    midpoints = 0.5 * (centers[:-1] + centers[1:])
+    edges = np.empty(len(centers) + 1, dtype=np.float64)
+    edges[1:-1] = midpoints
+    edges[0] = centers[0] - (midpoints[0] - centers[0])
+    edges[-1] = centers[-1] + (centers[-1] - midpoints[-1])
+    return edges
 
 
 def _calibrated_source_probability(

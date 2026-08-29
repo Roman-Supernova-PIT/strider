@@ -33,13 +33,13 @@ identifiers agree:
 - redshift grid.
 
 `strider check-model --model MODEL_DIRECTORY` performs these checks before the
-model is used.
+model is used. Every required artifact must also appear in `SHA256SUMS`.
 
 ## Input contract
 
 The deployment model receives only measured quantities:
 
-- observer-frame wavelength in Angstrom;
+- observer-frame wavelength-bin centers in Angstrom;
 - measured FLAM;
 - measured FLAMERR;
 - observer-frame dates or relative observer days; and
@@ -53,6 +53,11 @@ treated as zero-valued measurements.
 
 Simulation redshift, clean simulated flux and truth-derived rest phase are not
 deployment inputs.
+
+For configurations requiring complete detector support, STRIDER reconstructs
+the outer native-bin edges from adjacent wavelength centers. This matches the
+training-time treatment of the detector boundary rather than dropping the final
+model wavelength bin.
 
 ## Output contract
 

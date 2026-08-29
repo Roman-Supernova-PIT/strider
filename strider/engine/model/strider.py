@@ -56,7 +56,7 @@ def measurement_inputs(batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor
     return inputs
 
 
-class Strider3(nn.Module):
+class StriderModel(nn.Module):
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__()
         observation = config["observation"]

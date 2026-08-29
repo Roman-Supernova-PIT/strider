@@ -96,7 +96,7 @@ def save_current_evidence_map(
     evidence_axis.set_ylabel("Transient class")
     evidence_axis.tick_params(axis="x", labelbottom=False)
     colorbar = figure.colorbar(image, ax=evidence_axis, pad=0.015, fraction=0.035)
-    colorbar.set_label("Joint probability density (% per unit redshift)", fontsize=9.5)
+    colorbar.set_label("Model joint density (% per unit redshift)", fontsize=9.5)
     colorbar.ax.tick_params(labelsize=9)
 
     redshift_axis.fill_between(grid, redshift_density, color="#4C78A8", alpha=0.30)
@@ -132,7 +132,10 @@ def save_current_evidence_map(
     )
     class_axis.set_yticks(y, np.asarray(class_names, dtype=object)[order])
     class_axis.set_xlim(0.0, 100.0)
-    class_axis.set_xlabel("Class probability (%)")
+    probability_type = str(
+        result["classification"].get("probability_type", "model")
+    ).capitalize()
+    class_axis.set_xlabel(f"{probability_type} class probability (%)")
     class_axis.grid(axis="x", color="#DDDDDD", linewidth=0.7, alpha=0.8)
     class_axis.set_axisbelow(True)
     for bar, probability in zip(bars, class_probability[order], strict=True):
