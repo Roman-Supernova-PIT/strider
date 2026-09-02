@@ -5,7 +5,7 @@ project:
   output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_main
 
 training:
-  # Definitive fresh training of the frozen v3 architecture. The earlier
+  # Definitive fresh training of the frozen architecture. The earlier
   # full-sample run showed useful warmup learning but became unstable near a
   # global rate of 1e-3, so this schedule lowers the peak while retaining a
   # long cosine refinement period.

@@ -220,10 +220,10 @@ Independently reviewed the same day (implementation diff + statistics).
 | 11 — `_unit_profile` absolute threshold | **SOLID** — cost two runs on 2026-08-03 alone |
 | leak boundary z~1.4 for v2 | **SOLID** — production path, three independent lines |
 | **coadd suppresses the leak** | **SOLID** — control-gated, see addendum |
-| 9 — coadd/IV weighting performance | **VOID, rerun required** — the "inverse-variance" coadd was mis-weighted (`1/sigma^2` applied to already-rescaled flux; weights wrong by 21x median). The 0.0099 number reproduces but is NOT attributable to IV weighting |
+| 9 — coadd/IV weighting performance | **VOID, rerun required** — the "inverse-variance" coadd was mis-weighted (`1/sigma^2` applied to already-rescaled flux; weights wrong by 21x median). The 0.0099 number recurs but is NOT attributable to IV weighting |
 | 12 — temporal evolution classifies | **VOID** — the N_FIX=8 control failed. Ia span 64.8d vs CCSN 135.5d; span ALONE gives 90.5%, beating the claimed 75.5% spectral result in every z bin |
 | 13 — accumulation curve | **PARTIAL** — knee at 12 holds on a fixed cohort; "coadd halves outliers" is p=0.09, direction only; the k=24 point is a different (higher-z) population |
-| null test | **CONCLUSION HOLDS, evidence restated** — the uniform-on-grid baseline was the wrong null. Permutation baseline: 10.9% vs 10.8%, p=0.51 (0.06 sigma). Excludes leaks >5.5 pp only; 1 pp needs n~5900. Also NOT reproducible as written (`hash()` on np.str_ is per-process randomised) |
+| null test | **CONCLUSION HOLDS, evidence restated** — the uniform-on-grid baseline was the wrong null. Permutation baseline: 10.9% vs 10.8%, p=0.51 (0.06 sigma). Excludes leaks >5.5 pp only; 1 pp needs n~5900. It also cannot be repeated reliably as written (`hash()` on np.str_ is per-process randomised) |
 
 Method notes that make them leak-resistant by construction:
 
@@ -440,7 +440,7 @@ coadding cuts outliers roughly in half (9% vs 16%). So stacking buys robustness
 against aliases, not precision. A coherent-integration argument predicting a
 median advantage was tested and is WRONG.
 
-## 14. Epoch combination: v2 and v3 have opposite bugs
+## 14. Epoch combination: the legacy and current routes have opposite bugs
 
 - **v2** (`strider/latest/combiner.py:22,57`): defaults to `snr_sum` and returns
   `weighted.sum(dim=1)`; every config sets `combiner_mode: snr_sum`. With bounded

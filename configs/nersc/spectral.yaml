@@ -50,7 +50,7 @@ observation:
   generated_noise:
     background_shape_strength: 0.20
     background_scale_log_std: 0.20
-    # The first NERSC model must not reproduce the source-dependent SNANA
+    # The first NERSC model must not recover the source-dependent SNANA
     # variance pattern identified in the STRIDER-2 high-redshift review.
     source_variance_fraction: 0.0
   no_source_fraction: 0.0

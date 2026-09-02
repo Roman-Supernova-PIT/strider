@@ -77,7 +77,7 @@ around coadded clean S/N = 1.
 
 The residual and fresh reported-error controls do not recover redshift better
 than the source-free no-source view.  This rebuilt pilot therefore does not
-reproduce the earlier strong residual-only redshift result.  The similar
+recover the earlier strong residual-only redshift result.  The similar
 association with simulation redshift in all three no-source cases comes from
 observer-time sampling, as the next control shows.
 

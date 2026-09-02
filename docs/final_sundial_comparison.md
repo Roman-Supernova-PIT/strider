@@ -1,9 +1,13 @@
-# Final v2-v3 Sundial comparison
+# Legacy and current Sundial comparison
+
+> **Historical experiment record.** The route labels below match saved legacy
+> and development artifacts. They are not versions of the public STRIDER tool.
 
 This comparison has two deliberately separate questions.
 
 1. **Primary noise response:** use every true Sundial Ia, the same objects,
-   visits and native-bin noise draws in v2 and v3, and compare redshift bias,
+   visits and native-bin noise draws in the legacy and current models, and
+   compare redshift bias,
    redshift scatter, absolute redshift error and the fraction with
    `P(Ia) >= 0.9` as noise increases.
 2. **Classification check:** use the complete mixed-class Sundial sample at
@@ -11,9 +15,9 @@ This comparison has two deliberately separate questions.
    probability calibration. This check is separate because purity is not
    defined on an Ia-only sample.
 
-The current v2-v3 diagnostic retains at most 32 visits in both models. That is
+The existing paired diagnostic retains at most 32 visits in both models. That is
 the fair comparison for the checkpoints already trained with that contract.
-After the all-visit v3 model is trained, repeat only the v3 final-test
+After the all-visit current model is trained, repeat only its final-test
 evaluation and report it separately as the deployment model.
 
 ## NERSC setup

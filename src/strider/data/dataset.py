@@ -799,7 +799,7 @@ def _paired_standard_normal(
     repeat: int,
     seed: int,
 ) -> np.ndarray:
-    """Reproduce the frozen-v2 native-bin Gaussian draw for selected visits.
+    """Repeat the frozen-v2 native-bin Gaussian draw for selected visits.
 
     One object-level generator is advanced through visits in chronological
     order.  The same standard-normal realization is then multiplied by each

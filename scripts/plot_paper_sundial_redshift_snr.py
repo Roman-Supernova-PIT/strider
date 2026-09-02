@@ -526,7 +526,7 @@ def _write_caption(output_dir: Path, tag: str, redshift_column: str, snr_column:
     else:
         snr_description = f"The S/N selection uses column {snr_column!r}."
     caption = (
-        "Sundial redshift recovery for the provisional STRIDER v3 binary model. "
+        "Sundial redshift recovery for the provisional STRIDER binary model. "
         "The upper panels compare the STRIDER point estimate with the simulated "
         "redshift, while the lower panels show the raw residual "
         "Delta z = z_STRIDER - z_true. Columns retain "

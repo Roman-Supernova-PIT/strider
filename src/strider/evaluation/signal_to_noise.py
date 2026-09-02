@@ -321,7 +321,7 @@ def _validate_final_epoch_rows(
     catalog: pd.DataFrame,
     epoch_catalog: pd.DataFrame,
 ) -> None:
-    """Require the last cumulative epoch to reproduce the object-level catalog."""
+    """Require the last cumulative epoch to match the object-level catalog."""
     if epoch_catalog.empty:
         if len(catalog):
             raise ValueError("Epoch S/N output is empty for a non-empty object catalog")

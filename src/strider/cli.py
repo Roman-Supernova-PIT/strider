@@ -224,7 +224,7 @@ def main() -> None:
             command.add_argument(
                 "--paired-noise-seed",
                 type=int,
-                help="reproduce frozen-v2 object-level native-bin Gaussian draws",
+                help="repeat frozen-v2 object-level native-bin Gaussian draws",
             )
             command.add_argument(
                 "--save-predictions",

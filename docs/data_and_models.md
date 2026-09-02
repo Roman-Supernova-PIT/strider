@@ -19,7 +19,7 @@ deployed boundary.
 
 Raw simulations are converted to versioned HDF5 and Parquet stores by the
 preparation commands. Those stores are too large and too source-specific for
-Git. A reproducible run should record:
+Git. A repeatable run should record:
 
 - the source simulation name, version and access location;
 - the exact input file manifest and checksums;

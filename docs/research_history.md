@@ -2,7 +2,7 @@
 
 STRIDER developed through several simulation studies. Earlier configurations,
 scripts and reports are kept because they explain scientific decisions and may
-be needed to reproduce paper and NERSC work. Their presence does not make every
+be needed to repeat paper and NERSC work. Their presence does not make every
 route part of the public tool.
 
 ## How to read the repository
@@ -10,7 +10,7 @@ route part of the public tool.
 | Category | Current contents | Treatment |
 |---|---|---|
 | Public core | measured-data preparation, accumulation, Roman reference matching, posterior, calibration, deployment and their tests | Keep small, documented and stable |
-| Reproducibility and experiment history | detailed runbooks, result notes, controls, plots and historical configs | Preserve with clear status and provenance |
+| Run records and experiment history | detailed runbooks, result notes, controls, plots and historical configs | Preserve with clear status and provenance |
 | Candidate awaiting results | reference architecture plus the corrected two-epoch selection gate | Keep explicit; make no superiority claim |
 | Possible later archive | superseded model routes and one-off launch/config files after dependencies are mapped | Review after the paper and active NERSC work; do not delete by age |
 

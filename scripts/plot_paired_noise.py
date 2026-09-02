@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare v2 and v3 on exactly paired Sundial spectra and noise draws."""
+"""Compare legacy and current models on paired Sundial spectra and noise draws."""
 
 from __future__ import annotations
 
@@ -90,9 +90,9 @@ def _paired(v2: pd.DataFrame, v3: pd.DataFrame) -> pd.DataFrame:
     if not np.allclose(
         merged["true_redshift_v2"], merged["true_redshift_v3"], atol=1.0e-5
     ):
-        raise ValueError("paired v2 and v3 rows disagree on true redshift")
+        raise ValueError("paired legacy and current rows disagree on true redshift")
     if not merged["is_ia_v2"].eq(merged["is_ia_v3"]).all():
-        raise ValueError("paired v2 and v3 rows disagree on the Ia label")
+        raise ValueError("paired legacy and current rows disagree on the Ia label")
     merged["true_redshift"] = merged.pop("true_redshift_v2")
     merged["is_ia"] = merged.pop("is_ia_v2")
     return merged.drop(columns=["true_redshift_v3", "is_ia_v3"])

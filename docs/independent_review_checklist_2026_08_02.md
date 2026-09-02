@@ -97,7 +97,7 @@ Key final results on 500 held-out objects:
 
 Review these areas separately:
 
-1. data format, split integrity, native-bin noise generation, and reproducibility;
+1. data format, split integrity, native-bin noise generation, and run repeatability;
 2. model architecture, phase handling, redshift scan, and visit aggregation;
 3. statistics, adequacy target, calibration, and control-test power;
 4. ONIR integration, cadence variation, and the smallest next local experiment.

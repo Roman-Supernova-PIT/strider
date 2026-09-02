@@ -120,7 +120,7 @@ gather), which was mis-stated as 56 in an earlier review draft.
 ### 3.1 Pin the environment
 
 v2 pinned torch and left `numpy pyyaml scipy scikit-learn tensorboard` unpinned. That
-alone makes a run non-reproducible six months later.
+alone prevents an exact rerun six months later.
 
 ```bash
 # slurm/setup_env.sh
@@ -298,7 +298,7 @@ strider train --config "$CONFIG" --run-dir "$RUN_DIR"
 
 | # | Step | Why |
 |---|---|---|
-| 1 | `bash slurm/setup_env.sh` → new `strider` env from the lockfile | reproducibility |
+| 1 | `bash slurm/setup_env.sh` → new `strider` env from the lockfile | repeatable runs |
 | 2 | `cd $HOME && python -c "import strider; print(strider.__file__)"` | import-origin check; catches user-site shadowing |
 | 3 | **The CUDA all-masked-attention test** (2 min, §3.4) | decides how much of v2's reported performance is real |
 | 4 | `pytest tests -q` on the cluster | the env, not the code |

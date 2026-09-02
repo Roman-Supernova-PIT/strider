@@ -4,7 +4,7 @@
 > comparison that led to the current candidate. For the implemented runtime,
 > corrected edge treatment and present status, use
 > [`architecture.md`](architecture.md) and
-> [`reproducibility.md`](reproducibility.md).
+> [`research_workflow.md`](research_workflow.md).
 
 ## Question being tested
 

@@ -144,7 +144,7 @@ def test_random_state_restores_the_next_training_draws() -> None:
     assert torch.equal(actual[3], expected[3])
 
 
-def test_optimizer_continuation_reproduces_the_next_update() -> None:
+def test_optimizer_continuation_repeats_the_next_update() -> None:
     torch.manual_seed(23)
     uninterrupted = torch.nn.Linear(4, 2)
     uninterrupted_optimizer = torch.optim.AdamW(uninterrupted.parameters(), lr=1e-2)

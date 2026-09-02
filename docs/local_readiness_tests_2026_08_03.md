@@ -37,7 +37,7 @@ at least 0.5 away in redshift.
 | coadd, target noise | 0.396 | 0.027 | 0.315 |
 | coadd, mismatched noise | 0.225 | 0.072 | 0.417 |
 
-The v3 representation does not follow the mismatched noise source. Coadding
+The current representation does not follow the mismatched noise source. Coadding
 improves the source result, but its absolute local accuracy remains too weak to
 replace large-sample training.
 

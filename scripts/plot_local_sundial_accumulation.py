@@ -373,7 +373,7 @@ def plot_accumulation(
         axis.set_xlabel("spectra available to STRIDER")
     sample_label = "full redshift range" if regime == "all" else "z < 2"
     figure.suptitle(
-        f"STRIDER v3 evidence accumulation ({sample_label})",
+        f"STRIDER evidence accumulation ({sample_label})",
         fontsize=15,
         fontweight="bold",
     )
@@ -415,7 +415,7 @@ def plot_by_redshift(metrics: pd.DataFrame, output_dir: Path) -> Path:
     for axis in axes[-1]:
         axis.set_xlabel("spectra available to STRIDER")
     figure.suptitle(
-        "STRIDER v3 accumulation by true redshift",
+        "STRIDER accumulation by true redshift",
         fontsize=15,
         fontweight="bold",
     )
@@ -455,7 +455,7 @@ def plot_v2_reference(
         all_x = np.unique(np.r_[v3["prefix_spectra"], v2["prefix_epochs"]]).astype(float)
         style_axis(axis, all_x)
     axes[0].legend(frameon=False, fontsize=8)
-    figure.suptitle("Visit-prefix context: current v3 and the available v2 diagnostic", fontweight="bold")
+    figure.suptitle("Visit-prefix context: current and legacy diagnostics", fontweight="bold")
     figure.text(
         0.5, -0.02,
         "Context only—not a controlled model comparison: v2 used 120 different objects and a broad photo-z prior; v3 uses 500 Sundial objects with no redshift prior.",

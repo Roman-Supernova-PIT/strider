@@ -3,7 +3,7 @@
 **Date:** 2026-08-02
 **Purpose:** the concrete file layout, config discipline, documentation path and NERSC
 setup, folding in the review findings. Companion to
-`strider_consolidated_review_2026_08_02.md` (the *what* and *why*); this is the *where*.
+`consolidated_review_2026_08_02.md` (the *what* and *why*); this is the *where*.
 
 ---
 

@@ -1,8 +1,8 @@
-# STRIDER v3 review response
+# STRIDER candidate review response
 
 ## Decision
 
-STRIDER v3 remains a conditional go. The design is oracle-free and its blank
+The STRIDER candidate remains a conditional go. The design is oracle-free and its blank
 controls are encouraging, but a model result counts only when spectral input
 adds clear value beyond cadence and coverage metadata.
 

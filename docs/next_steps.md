@@ -3,11 +3,11 @@
 > **Historical planning record.** Tasks here are preserved for provenance and
 > should not be read as the current release plan. See
 > [`research_history.md`](research_history.md) and
-> [`reproducibility.md`](reproducibility.md).
+> [`research_workflow.md`](research_workflow.md).
 
 ## Current decision — 2026-08-13
 
-The current v3 checkpoint is the safety baseline, not the final architecture.
+The current checkpoint is the safety baseline, not the final architecture.
 The full-spectrum shape-and-feature experiment has now shown that matching the
 complete spectrum at every candidate redshift is useful alongside the named
 ONIR features. The remaining binary comparisons ask one narrow question: does
@@ -113,7 +113,7 @@ training:
 ```
 
 This retains the useful gradual convergence of v2 without repeating the
-aggressive v3 schedule that rose to `1e-3` and became unstable in the earlier
+aggressive development schedule that rose to `1e-3` and became unstable in the earlier
 full binary run. The schedule warms to `2e-4`, then decays to `1e-5`. Thirty
 epochs is a ceiling rather than a claim that all thirty are required; validation
 selection and early stopping choose the useful checkpoint.
@@ -207,7 +207,7 @@ matched no-source controls for every construction:
 3. an alternative detector or empirical noise model held out of training.
 
 Encourage the source posterior to agree across independent noise constructions.
-Do not train the class-redshift result to reproduce the original fixed noise
+Do not train the class-redshift result to match the original fixed noise
 realization.
 
 ## 3. Scale the encoded named ONIR evidence
@@ -228,7 +228,7 @@ The implemented encoded branch now:
 - keeps dates and phase out of this branch.
 
 At scale, validate the generated and clean views together when selecting a
-checkpoint. Retain the original `FLAM` view as a held-out reproduction test,
+checkpoint. Retain the original `FLAM` view as a held-out repeatability check,
 not a target that the model is trained to copy. See
 `docs/encoded_onir_results_2026_08_02.md` for the local numbers.
 

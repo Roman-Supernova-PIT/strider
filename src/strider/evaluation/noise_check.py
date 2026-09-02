@@ -758,7 +758,7 @@ def _plot_amplitude_summary(
         frameon=False,
     )
     fig.suptitle(
-        f"STRIDER v3 noise response — checkpoint epoch {checkpoint_epoch}",
+        f"STRIDER noise response — checkpoint epoch {checkpoint_epoch}",
         y=0.925,
         fontsize=12,
     )

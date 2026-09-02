@@ -1,6 +1,6 @@
-# Reproducibility workflow
+# Research workflow and run records
 
-The repository can currently reproduce code-level checks and project runs when
+The repository can currently repeat code-level checks and project runs when
 the authorized simulation data are available. It does not yet ship a supported
 checkpoint or a fully locked release environment.
 
@@ -55,4 +55,4 @@ Keep these together for every reported result:
 Before the first public model release, add a platform-tested environment lock
 and publish the data/reference/model artifact manifest. The current
 `pyproject.toml` describes compatible dependencies, but it is not an exact
-reproduction lock.
+environment lock for exact reruns.

@@ -89,8 +89,8 @@ Reference-bank format v3 records these semantics and rejects stale banks.
   boundaries.
 - [`docs/data_and_models.md`](docs/data_and_models.md) records data, reference
   bank and model-package provenance.
-- [`docs/reproducibility.md`](docs/reproducibility.md) gives the guarded research
-  workflow.
+- [`docs/research_workflow.md`](docs/research_workflow.md) gives the guarded run
+  sequence and required records.
 - [`docs/nersc.md`](docs/nersc.md) contains the concise NERSC path.
 - [`docs/research_history.md`](docs/research_history.md) identifies earlier
   architectures and experiment records without presenting them as current.

@@ -2,7 +2,7 @@
 
 The training and evaluation pipeline works with prepared Sundial stores.  This
 module is the smaller deployment boundary: it accepts measured observer-frame
-spectra, reproduces the training-time measurement preprocessing, runs one
+spectra, repeats the training-time measurement preprocessing, runs one
 self-contained model package, and returns a truth-free public result.
 """
 
@@ -279,7 +279,7 @@ def prepare_observed_series(
     observer_time: float | np.ndarray | Sequence[float],
     peak_time: float | None = None,
 ) -> PreparedSeries:
-    """Reproduce the deployable part of ``SundialDataset`` preprocessing."""
+    """Repeat the deployable part of ``SundialDataset`` preprocessing."""
     wave = np.asarray(wavelength, dtype=np.float64)
     values = np.asarray(flux, dtype=np.float64)
     errors = np.asarray(flux_error, dtype=np.float64)

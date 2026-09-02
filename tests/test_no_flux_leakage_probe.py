@@ -109,7 +109,7 @@ def _safe_spearman(first, second):
 
 
 def test_positive_control_noise_generator_moments():
-    """Control: the background envelope must reproduce its analytic moments."""
+    """Control: the background envelope must match its analytic moments."""
     settings = {
         "background_shape_strength": 0.20,
         "background_scale_log_std": 0.20,

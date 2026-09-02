@@ -118,7 +118,7 @@ claim.
 | Random profiles | 0.030 | 0.016 | 0.030 |
 | Equal-weight coadded input | 0.030 | 0.042 | 0.096 |
 
-The direct ONIR branch does not reproduce the earlier residual-only redshift
+The direct ONIR branch does not recover the earlier residual-only redshift
 recovery. Coadding does not improve source accuracy and triples the largest joint
 probability on residuals, so it should not replace visit-level evidence.
 

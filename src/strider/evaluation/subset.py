@@ -12,7 +12,7 @@ def stratified_positions(
     seed: int,
     redshift_edges: list[float],
 ) -> list[int]:
-    """Choose one reproducible class-redshift sample from a prepared split."""
+    """Choose one deterministic class-redshift sample from a prepared split."""
     target = min(len(objects), int(max_objects))
     if target < 1:
         raise ValueError("max_objects must be positive and the split must be nonempty")

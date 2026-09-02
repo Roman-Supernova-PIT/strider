@@ -124,7 +124,7 @@ for the next frozen training recipe and for honest calibration of its outputs.
   layers without changing the spectral representation:
   <https://proceedings.mlr.press/v70/guo17a.html>
 
-## Reproducibility
+## Repeatable runs
 
 The local scripts are:
 

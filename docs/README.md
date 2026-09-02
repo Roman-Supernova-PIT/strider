@@ -6,7 +6,8 @@ The current public reading path is deliberately short:
 2. [`architecture.md`](architecture.md) — scientific and API boundaries.
 3. [`data_and_models.md`](data_and_models.md) — data, reference-bank and model
    provenance.
-4. [`reproducibility.md`](reproducibility.md) — guarded evaluation sequence.
+4. [`research_workflow.md`](research_workflow.md) — guarded evaluation sequence
+   and run records.
 5. [`nersc.md`](nersc.md) — concise NERSC commands.
 
 [`calibration.md`](calibration.md) gives the detailed calibration contract.
