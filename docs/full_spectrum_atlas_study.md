@@ -1,5 +1,9 @@
 # Full-spectrum atlas feasibility study
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Question
 
 Can STRIDER use a measurement-faithful accumulated spectrum as a clear,

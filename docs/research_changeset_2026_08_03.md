@@ -1,5 +1,9 @@
 # STRIDER research change set — 2026-08-03
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 Five items from the phase/timing audit. Items 1–3 are code changes; item 4 is a
 data-generation change; item 5 is an experiment specification, not a code change.
 

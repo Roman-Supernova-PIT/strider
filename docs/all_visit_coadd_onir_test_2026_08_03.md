@@ -1,5 +1,9 @@
 # All-visit coadd and phase-neutral ONIR test — 2026-08-03
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Question
 
 Does coadding every recorded Sundial spectrum before the ONIR redshift scan improve

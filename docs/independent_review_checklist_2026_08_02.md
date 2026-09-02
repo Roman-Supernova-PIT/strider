@@ -1,5 +1,9 @@
 # Independent review checklist for the STRIDER local pilot
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 Conduct an independent, adversarial review of the new STRIDER local Sundial
 pilot. Spend time reading the implementation and the saved outputs, rerun
 focused tests where useful, and distinguish verified facts from interpretations.

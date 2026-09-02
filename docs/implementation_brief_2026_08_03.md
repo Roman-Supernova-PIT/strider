@@ -1,5 +1,9 @@
 # STRIDER implementation brief — 2026-08-03
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 Written for implementation. The long research log is `research_changeset_2026_08_03.md`
 (605 lines, contains retractions and voided claims — read the VERIFICATION STATUS
 table at its top before using anything from it). **This file supersedes it for

@@ -1,5 +1,9 @@
 # NERSC operational handoff — what made the v2 flat-z runs work
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 **Date:** 2026-08-02
 **Source:** extracted from the working `strider-v2/nersc/*.sh` scripts that produced the
 flat-z and 15-class models. This is the tacit knowledge that is not in any design

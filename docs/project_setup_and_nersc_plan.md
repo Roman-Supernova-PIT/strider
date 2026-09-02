@@ -1,5 +1,9 @@
 # STRIDER — project setup, local and NERSC
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 **Date:** 2026-08-02
 **Purpose:** the concrete file layout, config discipline, documentation path and NERSC
 setup, folding in the review findings. Companion to

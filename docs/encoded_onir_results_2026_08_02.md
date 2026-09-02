@@ -1,5 +1,9 @@
 # Encoded ONIR local results — 2026-08-02
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Scope
 
 This is an architecture test on the local binary Sundial subset, not a final

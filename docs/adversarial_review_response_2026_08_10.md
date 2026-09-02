@@ -1,5 +1,9 @@
 # STRIDER candidate review response
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Decision
 
 The STRIDER candidate remains a conditional go. The design is oracle-free and its blank

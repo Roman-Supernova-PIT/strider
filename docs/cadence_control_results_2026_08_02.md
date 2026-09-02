@@ -1,5 +1,9 @@
 # Cadence-control experiments — 2026-08-02
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Question
 
 Can STRIDER retain useful spectral and temporal information without producing a

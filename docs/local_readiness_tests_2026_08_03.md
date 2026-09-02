@@ -1,5 +1,9 @@
 # Local readiness tests — 2026-08-03
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 These tests decide what to run first on NERSC. They are architecture checks on
 held-out Sundial objects, not performance forecasts for the full training set.
 All redshift errors below are raw `predicted redshift - true redshift`.

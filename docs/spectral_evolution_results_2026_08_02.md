@@ -1,5 +1,9 @@
 # Separated spectral and temporal evidence — local result
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Purpose
 
 The earlier pilot added candidate-phase features directly to every spectral

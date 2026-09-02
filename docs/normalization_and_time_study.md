@@ -1,5 +1,9 @@
 # Flux scaling and time-series study
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Outcome
 
 The current shape and redshift paths are insensitive to a positive rescaling of

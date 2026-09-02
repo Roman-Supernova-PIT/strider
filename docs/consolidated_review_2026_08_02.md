@@ -1,5 +1,9 @@
 # STRIDER — consolidated review and implementation specification
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 **Date:** 2026-08-02
 **Source:** adversarial reviews of STRIDER 2 and the STRIDER design documents,
 plus an independent review of the STRIDER local pilot.

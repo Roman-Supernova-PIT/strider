@@ -1,5 +1,9 @@
 # Factored spectral and temporal evidence
 
+> **Historical research record:** This page preserves an earlier experiment or
+> decision. It does not define the current STRIDER tool. See
+> [`architecture.md`](architecture.md) for the current design.
+
 ## Why this comparison exists
 
 The first encoded ONIR model deliberately averages named regions and visits.
