@@ -1,0 +1,23 @@
+extends: ../nersc/ia_binary_20k.yaml
+
+project:
+  name: local_ia_binary_20k
+  output_dir: runs/local_ia_binary_20k
+
+data:
+  source_products: null
+  prepared_dir: data/local/ia_binary_20k
+
+onir:
+  bank_path: data/local/onir/ia_binary_20k.npz
+
+training:
+  epochs: 10
+  warmup_epochs: 2
+  early_stopping_patience: 4
+  batch_size: 8
+  num_workers: 0
+  persistent_workers: false
+  mixed_precision: float32
+  benchmark_worker_counts: [0]
+  benchmark_batch_sizes: [4, 8]

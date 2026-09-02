@@ -1,0 +1,28 @@
+extends: ia_binary_full_main.yaml
+
+project:
+  name: ia_binary_20k_phase_control_main
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_phase_control_main
+
+data:
+  runtime_object_limits:
+    train: 20000
+    selection: 5000
+    calibration: 2000
+    test: 0
+
+training:
+  # Copy the selected main checkpoint to this stable filename before launching
+  # both matched arms. This prevents continuing main training from changing
+  # their common starting point while either job waits in the queue.
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full_main/phase_baseline_model.pt
+  # Keep the configured object batch at 16, but use a smaller GPU microbatch
+  # when the development gate exercises the longest prepared time series.
+  maximum_visits_per_batch: 512
+  maximum_squared_visits_per_batch: 16384
+  epochs: 8
+  learning_rate: 0.0001
+  learning_rate_schedule: cosine
+  warmup_epochs: 1
+  minimum_learning_rate_fraction: 0.1
+  early_stopping_patience: 8

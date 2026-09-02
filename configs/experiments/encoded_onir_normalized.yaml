@@ -1,0 +1,9 @@
+extends: encoded_onir_named_clean.yaml
+
+project:
+  name: sundial_local_encoded_onir_normalized
+  output_dir: runs/sundial_local_encoded_onir_normalized
+
+onir:
+  input_normalization: per_visit
+  token_activation: gelu

@@ -1,0 +1,16 @@
+extends: grouped_8_full.yaml
+
+project:
+  name: grouped_8_full_refinement
+  output_dir: ${STRIDER_OUTPUT_DIR}/grouped_8_full_refinement
+
+training:
+  # Refine the best full-sample eight-class checkpoint after the high-rate
+  # representation-learning stage. The parent run remains unchanged.
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/grouped_8_full/best_model.pt
+  epochs: 12
+  learning_rate: 0.0002
+  learning_rate_schedule: cosine
+  warmup_epochs: 0
+  minimum_learning_rate_fraction: 0.10
+  early_stopping_patience: 12

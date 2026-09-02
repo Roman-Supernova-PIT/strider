@@ -1,0 +1,13 @@
+extends: ia_binary_full.yaml
+
+project:
+  name: ia_binary_full_refine
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_refine
+
+training:
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full/best_model.pt
+  epochs: 4
+  learning_rate: 0.0002
+  learning_rate_schedule: constant
+  warmup_epochs: 0
+  early_stopping_patience: 4

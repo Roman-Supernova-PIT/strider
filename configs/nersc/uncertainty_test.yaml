@@ -1,0 +1,19 @@
+extends: edge_test.yaml
+
+project:
+  name: uncertainty_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/uncertainty_test
+
+model:
+  # Avoid a broad signal-quality cut; the reference route below removes only
+  # bins whose reported precision is below float32 numerical resolution.
+  coadd_maximum_relative_error: null
+
+reference:
+  bank_path: ${STRIDER_DATA_DIR}/reference/roman_uncertainty_weighted.npz
+  maximum_relative_coadd_error: null
+  # Apply the same class- and wavelength-independent numerical support rule to
+  # reference and observed spectra. Above this floor, FLAMERR remains a
+  # continuous reliability weight rather than a class signal.
+  minimum_relative_spectral_precision: 1.1920929e-7
+  spectral_uncertainty_weighting: inverse_variance

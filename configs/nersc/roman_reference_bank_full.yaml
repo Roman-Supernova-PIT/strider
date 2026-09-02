@@ -1,0 +1,16 @@
+extends: ia_binary_20k_roman_reference.yaml
+
+project:
+  name: roman_reference_bank_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/roman_reference_bank_full
+
+data:
+  # Build physical references from the complete training role. Labels from the
+  # selection, calibration, and test roles are never read by the builder.
+  prepared_dir: ${STRIDER_DATA_DIR}/ia_binary_full
+
+reference:
+  bank_path: ${STRIDER_DATA_DIR}/reference/roman_full_training.npz
+  # Keep the construction similar in scale to the 20k architecture pilots,
+  # while retaining every example of classes with fewer than 2,000 objects.
+  maximum_training_objects_per_class: 2000

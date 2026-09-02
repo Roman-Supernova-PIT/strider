@@ -1,0 +1,79 @@
+extends: ia_binary_20k.yaml
+
+project:
+  name: ia_binary_20k_roman_reference
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_roman_reference
+
+data:
+  # This is an architecture-selection pilot. Its inherited 150-object test cap
+  # is only a quick development preview, not the final Sundial evaluation.
+  max_visits: all
+  training_visit_counts: [3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128]
+  # Reported errors determine the coadd and which visits represent the sequence.
+  # Clean simulated spectra remain excluded from every runtime model call.
+  include_flux_error_channel: true
+
+model:
+  architecture: roman_reference
+  temporal_mode: none
+  full_spectrum_context: false
+  dense_rest_frame_scan: false
+  dense_continuum_detail: false
+  relative_brightness_evolution: false
+  phase_auxiliary_bins: 0
+  candidate_phase_consistency: false
+  use_flux_error_channel: false
+  coadd_maximum_relative_error: 3.0
+  coadd_edge_trim_fraction: 0.05
+
+reference:
+  # Built once from a class-balanced sample of the complete training role.
+  # This is distinct from the invalid pre-normalization pilot bank.
+  bank_path: ${STRIDER_DATA_DIR}/reference/roman_full_training.npz
+  # Direct, mask-aware correlation is the physical-reference control.
+  spectral_encoder: direct
+  sequence_combination: mean
+  rest_wavelength_bins: 256
+  phase_edges_days: [-20.0, -5.0, 10.0, 25.0, 45.0, 80.0]
+  coadd_profiles_per_class: 6
+  phase_profiles_per_cell: 3
+  maximum_coadd_profiles_per_class: 2000
+  maximum_phase_profiles_per_cell: 1000
+  minimum_bin_fraction: 0.5
+  minimum_rest_bins: 32
+  continuum_width_km_s: 12000.0
+  maximum_relative_coadd_error: 3.0
+  edge_trim_fraction: 0.05
+  minimum_profile_support: 5
+  minimum_rest_fraction: 0.15
+  minimum_shared_fraction: 0.75
+  prototype_temperature: 0.08
+  fine_class_temperature: 0.10
+  phase_temperature: 0.10
+  initial_continuum_removed_fraction: 0.60
+  initial_coadd_scale: 0.75
+  initial_sequence_scale: 0.20
+  evidence_scale: 10.0
+  redshift_chunk_size: 12
+  sequence_visits: 6
+  minimum_sequence_visits: 2
+
+training:
+  epochs: 8
+  learning_rate: 0.0003
+  warmup_epochs: 1
+  early_stopping_patience: 8
+  batch_by_visit_count: true
+  full_visit_training_fraction: 0.5
+  maximum_visits_per_batch: 512
+  maximum_squared_visits_per_batch: 16384
+  validation_view_weights:
+    original: 2.0
+    generated: 1.0
+
+evaluation:
+  views: [original, generated, clean, no_source]
+  visit_control_repeats: 1
+  visit_control_max_objects: 1600
+  visit_control_selection: span
+  visit_control_counts: [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, all]

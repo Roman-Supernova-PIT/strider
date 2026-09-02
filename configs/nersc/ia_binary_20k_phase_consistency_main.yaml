@@ -1,0 +1,18 @@
+extends: ia_binary_20k_phase_control_main.yaml
+
+project:
+  name: ia_binary_20k_phase_consistency_main
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_phase_consistency_main
+
+model:
+  # Simulation phase supervises this auxiliary head during training only.
+  # Inference still receives observer-frame spectra and relative dates alone.
+  phase_auxiliary_bins: 31
+  phase_auxiliary_min_days: -50.0
+  phase_auxiliary_max_days: 100.0
+  candidate_phase_consistency: true
+  candidate_phase_initial_scale: 0.0
+  candidate_phase_minimum_visits: 2
+
+training:
+  phase_loss_weight: 0.25

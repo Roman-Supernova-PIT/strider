@@ -1,0 +1,23 @@
+extends: spectral_50k.yaml
+
+project:
+  name: spectral_50k_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_50k_test
+
+data:
+  runtime_object_limits:
+    train: 3000
+    selection: 1000
+    calibration: 300
+    test: 100
+
+training:
+  epochs: 2
+  warmup_epochs: 1
+  early_stopping_patience: 2
+  num_workers: 8
+  benchmark_worker_counts: [4, 8]
+  benchmark_batches: 5
+
+evaluation:
+  visit_control_repeats: 1

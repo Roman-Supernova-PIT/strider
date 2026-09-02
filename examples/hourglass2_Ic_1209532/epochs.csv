@@ -1,7 +1,0 @@
-file,phase_days,object_id,true_class,true_redshift
-spectrum_01.csv,-8.000141,1209532,Ic,0.868175
-spectrum_02.csv,0.437881,1209532,Ic,0.868175
-spectrum_03.csv,8.930929,1209532,Ic,0.868175
-spectrum_04.csv,17.402780,1209532,Ic,0.868175
-spectrum_05.csv,25.895507,1209532,Ic,0.868175
-spectrum_06.csv,35.356077,1209532,Ic,0.868175

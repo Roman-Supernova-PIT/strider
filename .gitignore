@@ -1,11 +1,27 @@
+.DS_Store
 __pycache__/
 *.py[cod]
-*.egg-info/
 .pytest_cache/
+.mplcache/
 .ruff_cache/
+.coverage
+htmlcov/
 .venv/
 build/
 dist/
-output/
-*.png
-.DS_Store
+*.egg-info/
+
+# Prepared spectra and trained outputs are reproducible products, not source.
+/data/
+/runs/
+/logs/
+/local_models/
+/results/
+/artifacts/
+/checkpoints/
+
+# Editors and local environment settings.
+.idea/
+.vscode/
+.env
+.env.*

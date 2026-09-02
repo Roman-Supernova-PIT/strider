@@ -1,0 +1,11 @@
+extends: temporal_test.yaml
+
+project:
+  name: brightness_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/brightness_test
+
+reference:
+  # Preserve the spectral matcher and temporal Transformer exactly.  Add only
+  # the brightening/fading pattern after removing one overall flux scale from
+  # each available object history.
+  relative_flux_evolution: true

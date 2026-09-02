@@ -1,0 +1,5 @@
+extends: spectral_evolution.yaml
+
+project:
+  name: sundial_local_spectral_evolution_zero_preserving
+  output_dir: runs/sundial_local_spectral_evolution_zero_preserving

@@ -1,0 +1,17 @@
+extends: strider_attention_full.yaml
+
+project:
+  name: binary_speed
+  output_dir: ${STRIDER_OUTPUT_DIR}/binary_speed
+
+training:
+  # Benchmark the actual Roman-reference forward/backward pass without the
+  # conservative visit budgets inherited from all-visit attention models.
+  # This architecture forms the coadd linearly and selects six visits before
+  # temporal combination, so it does not allocate a V x V visit tensor.
+  # Each candidate divides the intended 16-object optimizer step exactly.
+  benchmark_batch_sizes: [2, 4, 8, 16]
+  benchmark_worker_counts: [16]
+  benchmark_batches: 20
+  maximum_visits_per_batch: null
+  maximum_squared_visits_per_batch: null

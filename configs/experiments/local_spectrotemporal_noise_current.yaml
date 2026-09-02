@@ -1,0 +1,8 @@
+extends: local_spectrotemporal_current.yaml
+
+project:
+  name: local_spectrotemporal_noise_current
+  output_dir: runs/local_spectrotemporal_noise_current
+
+training:
+  paired_reported_error_fraction: 0.5

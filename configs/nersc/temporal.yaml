@@ -1,0 +1,9 @@
+extends: spectral.yaml
+
+project:
+  name: temporal
+  output_dir: ${STRIDER_OUTPUT_DIR}/temporal
+
+model:
+  temporal_mode: spectral_evolution
+  temporal_initial_scale: 0.0

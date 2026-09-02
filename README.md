@@ -2,152 +2,124 @@
 
 **S**pectral **T**ime-se**R**ies **ID**entifi**E**r for **R**oman.
 
-STRIDER classifies supernova spectra and estimates their redshift. It works on a
-single spectrum but is built for several epochs of the same transient: it keeps
-the epochs distinct, learns how the spectrum evolves, and returns a joint
-probability distribution over class and redshift.
+STRIDER is in development as a research tool for classifying transients and
+estimating redshift from Roman-like prism observations. It works entirely from
+measured observer-frame spectra, their reported uncertainties and their
+observation dates. It does not require the transient's true redshift or
+rest-frame phase.
 
-The trained model and a few example objects are included here.
+> **Research preview:** STRIDER is not an official Roman mission pipeline or a
+> validated Roman data product.
 
-## Install
+The frozen calibrated STRIDER baseline remains the verified comparison. The
+reference-based design in this repository is still undergoing matched
+evaluation and is not presented as better or final.
 
-STRIDER needs Python 3.11 or newer. A separate environment keeps it isolated
-from your system Python:
+## Quick check
 
-```bash
-git clone https://github.com/mdixon741/strider.git
-cd strider
-
-conda create -n strider python=3.11
-conda activate strider
-
-python -m pip install --upgrade pip
-python -m pip install -e .
-```
-
-If you already have an active Python 3.11 environment, skip the two `conda`
-commands. The install includes CSV, text, NPZ and FITS input, along with the
-plotting packages.
-
-Check the model loaded:
+STRIDER requires Python 3.11 or newer. The repository currently provides the
+research pipeline and tests; a supported checkpoint download will follow only
+after selection, calibration and final evaluation are complete.
 
 ```bash
-strider check-model
+python -m pip install -e ".[dev]"
+python -m pytest -q
 ```
 
-## Run it
+The small temporal example checks the command-line path without simulation
+files or a trained STRIDER checkpoint:
 
 ```bash
-strider classify examples/SN20088677_ou/spectrum_*.csv --top-k 3
+strider temporal-example \
+  --epochs 2 \
+  --training-objects 120 \
+  --test-objects 40 \
+  --output runs/temporal_example/summary.json
 ```
 
-```text
-STRIDER  SN20088677_ou
-──────────────────────────────────────────────────
-Input      5 spectra, phase -15.0 to +15.0 d
+This is a smoke test, not a performance result.
 
-Class      Ia       0.998
-Redshift   z = 0.1273   68% [0.1173, 0.1685]   Two possible redshifts
+## Measurements in, results out
 
-Top 3      Ia     0.998
-           IIL    0.001
-           Iax    0.000
-```
+One object contains one or more prism spectra. Each visit supplies:
 
-Add `--verbose` for the input coverage, the gold-Ia cut, and the redshift
-detail. A few more example objects live under `examples/` — run them the same way.
+- observer-frame wavelength in Angstrom;
+- measured flux;
+- reported flux uncertainty; and
+- an observation date or equivalent observer-frame day coordinate.
 
-## Input
+The deployed boundary accepts no truth class, truth redshift, clean simulated
+flux or simulated phase. Training labels may be used offline to build the fixed
+simulation-derived reference bank and to calculate evaluation metrics.
 
-The simplest input is a CSV or text table:
+STRIDER returns:
 
-```text
-wavelength flux flux_err phase
-```
+- a joint distribution over transient class and redshift;
+- class probabilities and a redshift posterior with competing solutions kept;
+- separate calibration and redshift-coverage information when fitted; and
+- a separate measured-signal reliability result, including an explicit
+  insufficient-spectral-information outcome.
 
-- `wavelength` — observed, in Angstrom
-- `flux` — any units; STRIDER normalises internally
-- `flux_err` — optional, used for weighting
-- `phase` — rest-frame days from peak brightness (required)
+## How it works
 
-One file per epoch, or a single table with a `phase` column. For a single
-spectrum you can pass the phase on the command line instead:
+1. Sort the measured spectra into their observation sequence and resample each
+   once onto a common observer-frame wavelength grid.
+2. Form an inverse-variance accumulated spectrum from every available visit.
+3. Keep two complementary views: the normalized full spectrum and its
+   continuum-removed structure.
+4. Compare both views with a fixed reference bank built from clean simulations
+   in the training split only.
+5. Scan every candidate class and redshift without supplying the object's true
+   redshift or phase.
+6. Select up to eight chronological temporal spectra and compare their measured
+   evolution, relative brightness and timing with the candidate history.
+7. Report the joint class-redshift result separately from calibration and
+   measured-signal reliability.
 
-```bash
-strider classify spectrum.txt --phase -7
-```
+The corrected wavelength-edge treatment leaves measured flux unchanged. A 5%
+cosine taper changes only the influence of edge bins during matching. Apart from
+the exact zero-weight endpoints, measured bins remain available unless their
+relative precision is below the declared floating-point resolution floor.
+Reference-bank format v3 records these semantics and rejects stale banks.
 
-STRIDER also reads `.npz` and FITS files.
+## Read next
 
-For time series with `flux_err`, plot how Ia versus non-Ia confidence changes
-with cumulative spectral signal-to-noise:
+- [`docs/start_here.md`](docs/start_here.md) follows one object through the tool.
+- [`docs/architecture.md`](docs/architecture.md) defines the scientific and API
+  boundaries.
+- [`docs/data_and_models.md`](docs/data_and_models.md) records data, reference
+  bank and model-package provenance.
+- [`docs/reproducibility.md`](docs/reproducibility.md) gives the guarded research
+  workflow.
+- [`docs/nersc.md`](docs/nersc.md) contains the concise NERSC path.
+- [`docs/research_history.md`](docs/research_history.md) identifies earlier
+  architectures and experiment records without presenting them as current.
 
-```bash
-strider classify series.npz --plot-confidence confidence.png
-```
+## Repository map
 
-## What you get back
+| Path | Purpose |
+|---|---|
+| `src/strider/data/` | simulation input, native-bin preparation and measured-spectrum batching |
+| `src/strider/atlas/roman_reference.py` | build and validate the training-only reference bank |
+| `src/strider/model/coadd.py` | measurement-faithful inverse-variance accumulation and reliability weights |
+| `src/strider/model/roman_reference.py` | full-spectrum, continuum-removed and observation-sequence matching |
+| `src/strider/calibration/` | separate class, redshift-set and measured-signal calibration |
+| `src/strider/deployment.py` | observer-frame inference from a checksummed model package |
+| `src/strider/training/` | fitting, checkpoint selection and exact continuation |
+| `src/strider/evaluation/` | predictions, controls and scientific diagnostics |
+| `tests/` | scientific and implementation contracts |
 
-- the type, with a ranked list and a calibrated probability for each class
-- `z_STRIDER` — the posterior-median redshift — with 68/90/95% intervals
-- how much to trust that redshift: reliable, uncertain, or two possible values
-- which epochs and wavelengths were used
+## Roman context
 
-Two notes on the output:
+STRIDER is being developed by members of the
+[Roman Supernova Cosmology Project Infrastructure Team](https://www.romansnpit.com/).
+Related community tools are available through the
+[Roman Supernova PIT GitHub organization](https://github.com/Roman-Supernova-PIT).
+The relevant mission context is NASA's
+[Roman High-Latitude Time-Domain Survey](https://science.nasa.gov/mission/roman-space-telescope/high-latitude-time-domain-survey/).
 
-- **"two possible redshifts"** means a second candidate the tight interval hides —
-  prefer the reliable ones when you need a redshift you can trust.
-- **gold-Ia** is a strict purity cut for cosmology samples; a confident Ia need
-  not be gold.
+## Citation and license
 
-Save the result as JSON, or draw an evidence map:
-
-```bash
-strider classify examples/SN20088677_ou/spectrum_*.csv \
-  --output-text output/output.txt \
-  --output-json output/result.json \
-  --plot output/evidence.png \
-  --plot-evolution output/evidence.gif \
-  --plot-epochs output/timeseries
-```
-
-`output.txt` is the concise overall result shown in the terminal. The PNG shows
-the final evidence using every supplied spectrum. The GIF adds the spectra in
-phase order, while the `timeseries` folder contains the same cumulative evidence
-map as a separate PNG after every epoch.
-
-Run `strider classify --help` for the phase, redshift-prior and wavelength
-controls. To run on the Roman SMDC, see [`deploy/smdc`](deploy/smdc/README.md).
-
-## Python
-
-```python
-from strider import load_model
-
-model = load_model("models/strider.pt")
-out = model.classify(wavelength, flux, phase)   # phase in rest-frame days
-
-out["strider_class"]   # 'Ia'
-out["p_Ia"]
-out["z_STRIDER"]
-```
-
-## Where it works
-
-STRIDER was trained on Roman-like prism spectra over 7500–18000 Å and
-0 < z < 3, and it reads redshift from where a supernova's features land in that
-window. It is most reliable when the strong features sit inside that range.
-Spectra that fall largely outside it, or come from a very different instrument,
-are outside what the model has seen — treat those results with care.
-
-## Model
-
-The included `strider-15class` checkpoint covers:
-
-`Ia`, `91bg`, `Iax`, `IIP`, `IIL`, `IIb`, `IIn`, `Ib`, `Ic`, `Ic-BL`, `SLSN`,
-`TDE`, `ILOT`, `KN`, `PISN`.
-
-## Citation
-
-If you use STRIDER, please cite Dixon et al. (2026). *(Reference to follow on
-publication.)*
+Citation metadata is provided in [`CITATION.cff`](CITATION.cff). The repository
+does not yet grant an open-source license; a license and copyright holder must
+be agreed before the first public release.

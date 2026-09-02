@@ -1,0 +1,5 @@
+extends: encoded_onir_normalized_40epoch.yaml
+
+project:
+  name: sundial_local_encoded_onir_normalized_multiview
+  output_dir: runs/sundial_local_encoded_onir_normalized_multiview

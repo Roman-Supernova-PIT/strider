@@ -1,0 +1,161 @@
+project:
+  name: spectral
+  seed: 73031
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral
+
+data:
+  class_scheme: hourglass_15
+  # These are separate simulation productions, not random partitions of one
+  # directory. The final-test files are never used to fit or select a model.
+  source_products:
+    flat_training:
+      source_dir: ${STRIDER_TRAIN_DIR}
+      split_blocks:
+        train: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    flat_validation:
+      source_dir: ${STRIDER_VALIDATION_DIR}
+      split_blocks:
+        selection: [1, 2, 3, 4, 5, 6, 7, 8]
+        calibration: [9, 10]
+    sundial_final:
+      source_dir: ${STRIDER_TEST_DIR}
+      split_blocks:
+        test: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  prepared_dir: ${STRIDER_DATA_DIR}/prepared
+  max_objects:
+    train: 0
+    selection: 0
+    calibration: 0
+    test: 0
+  # A 15-class run is not valid when a role silently lacks a declared class.
+  # Inspect the delivered simulation and revise block assignments if this fails.
+  minimum_class_counts:
+    train: 5
+    selection: 1
+    calibration: 1
+    test: 1
+  redshift_edges: [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
+  max_visits: 32
+  # The requested count is independent of redshift. Objects with fewer visits
+  # retain every measured visit; visits are never fabricated.
+  training_visit_counts: [3, 4, 6, 8, 12, 16, 24, 32]
+
+observation:
+  wavelength_min: 7500.0
+  wavelength_max: 18175.0
+  wavelength_bins: 1024
+  # SNANA sometimes ends a spectrum where its source template ends. This safe
+  # reference arm excludes that simulation boundary; retained support is tested separately.
+  template_support_policy: complete
+  generated_noise:
+    background_shape_strength: 0.20
+    background_scale_log_std: 0.20
+    # The first NERSC model must not reproduce the source-dependent SNANA
+    # variance pattern identified in the STRIDER-2 high-redshift review.
+    source_variance_fraction: 0.0
+  no_source_fraction: 0.0
+
+model:
+  architecture: encoded_onir
+  # The first model measures spectra only. Temporal evolution is a separate
+  # comparison after the timing-only check passes.
+  temporal_mode: none
+  # The temporal comparison starts from zero so it must improve on the spectral
+  # model through measured cross-visit changes.
+  temporal_initial_scale: 0.0
+  # Keep this scale explicit so changing max_visits cannot silently change the
+  # meaning of an already trained evidence-sufficiency head.
+  evidence_visit_count_reference: 32
+  rest_wavelength_min: 2500.0
+  rest_wavelength_max: 10000.0
+  rest_wavelength_bins: 512
+  redshift_min: 0.0
+  redshift_max: 3.0
+  redshift_bins: 500
+  # Redshift is a translation on the log-wavelength axis.
+  redshift_spacing: log1p
+  redshift_prior: flat_z
+  dropout: 0.10
+  classes: [Ia, 91bg, Iax, IIP, IIL, IIb, IIn, Ib, Ic, Ic-BL, SLSN, TDE, ILOT, KN, PISN]
+
+onir:
+  catalog_path: configs/onir_features.yaml
+  bank_path: ${STRIDER_DATA_DIR}/onir/bank.npz
+  bank_view: clean
+  anchor_mode: named
+  profile_initialization: clean_prototypes
+  # On the 512-bin rest grid, 40 bins retain the widest 30,000 km/s regions.
+  maximum_radius_bins: 40
+  allow_radius_clipping: false
+  maximum_windows_per_cell: 5000
+  minimum_valid_fraction: 0.8
+  prototype_count: 3
+  profile_rest_phase_min_days: -20.0
+  profile_rest_phase_max_days: 80.0
+  evidence_scale: 10.0
+  drift_loss_weight: 0.1
+  token_dim: 16
+  encoded_samples_per_feature: 9
+  encoded_sample_extent_fraction: 0.8
+  minimum_encoder_support: 0.5
+  minimum_prototype_support: 5
+  prototype_temperature: 0.1
+  # Coverage is reported as a diagnostic; it must not act as a hidden prior.
+  coverage_log_weight: 0.0
+  # This arm learns spectral shape after centring and scaling each visit. The
+  # evidence-sufficiency head still receives background-scaled flux and retains
+  # the absolute indication that a source is weak.
+  input_normalization: per_visit
+  token_activation: gelu
+  # Begin with a visit mean. Refit any evidence-growth exponent on v3's
+  # selection role after the noise and cadence controls pass.
+  visit_evidence_exponent: 0.0
+
+training:
+  epochs: 80
+  batch_size: 8
+  learning_rate: 0.001
+  learning_rate_schedule: cosine
+  warmup_epochs: 5
+  minimum_learning_rate_fraction: 0.10
+  weight_decay: 0.0001
+  num_workers: 8
+  persistent_workers: true
+  prefetch_factor: 2
+  benchmark_worker_counts: [1, 2, 4, 8, 16]
+  benchmark_batch_sizes: [2, 4, 8]
+  benchmark_batches: 200
+  early_stopping_patience: 10
+  selection_split: selection
+  paired_no_source: true
+  paired_reported_error_fraction: 0.0
+  evidence_sufficiency_loss_weight: 0.5
+  no_source_redshift_loss_weight: 0.5
+  no_source_class_loss_weight: 0.25
+  class_weight_mode: inverse_frequency
+  class_weight_power: 0.5
+  validation_view_weights:
+    generated: 1.0
+  mixed_precision: bfloat16
+  max_gradient_norm: 1.0
+
+evaluation:
+  # Test remains unread until the model and calibration procedure are fixed.
+  split: calibration
+  views: [original, generated, clean]
+  outlier_delta_z: 0.10
+  visit_control_repeats: 3
+  visit_control_counts: [1, 2, 4, 8, 16, 24, 32]
+  save_redshift_probability: true
+  evidence_map_view: original
+  evidence_map_redshifts: [0.75, 1.5, 2.5]
+  evidence_map_objects_per_redshift: 4
+  evidence_gif_max_frames: 24
+  # Replace these grade boundaries after calibration on source and blank controls.
+  evidence_grade_thresholds: [0.25, 0.5, 0.75]
+  # Show a second posterior solution when its basin contains at least this
+  # fraction of the probability mass assigned to the main peak's basin.
+  competing_peak_mass_ratio: 0.25
+  # Three Ia examples keep the redshift diagnostic focused; the fourth object
+  # retains a non-Ia comparison for the classification side of STRIDER.
+  ia_examples_per_redshift: 3

@@ -1,0 +1,34 @@
+extends: binary_test.yaml
+
+project:
+  name: classes_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/classes_test
+
+data:
+  # Reuse the prepared class-balanced development sample so every physical
+  # class is represented during this architecture test.
+  prepared_dir: ${STRIDER_DATA_DIR}/spectral_20k
+  class_scheme: hourglass_15
+  minimum_class_counts:
+    train: 5
+    selection: 1
+    calibration: 1
+    test: 0
+
+model:
+  classes:
+    - Ia
+    - 91bg
+    - Iax
+    - IIP
+    - IIL
+    - IIb
+    - IIn
+    - Ib
+    - Ic
+    - Ic-BL
+    - SLSN
+    - TDE
+    - ILOT
+    - KN
+    - PISN

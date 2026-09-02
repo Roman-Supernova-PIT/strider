@@ -1,0 +1,12 @@
+extends: cadence_controlled.yaml
+
+project:
+  name: sundial_local_pilot_all_visit_counts
+  output_dir: runs/sundial_local_pilot_all_visit_counts
+
+data:
+  training_visit_counts: [1, 2, 4, 8, 12]
+
+training:
+  no_source_redshift_loss_weight: 1.0
+  no_source_class_loss_weight: 0.5

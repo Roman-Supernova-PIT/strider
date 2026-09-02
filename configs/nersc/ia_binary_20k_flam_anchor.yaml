@@ -1,0 +1,24 @@
+extends: ia_binary_20k_recipe_reference.yaml
+
+project:
+  name: ia_binary_20k_flam_anchor
+  seed: 73031
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_flam_anchor
+
+training:
+  # Source views: 50% stored SNANA FLAM, 25% fresh FLAMERR draws and
+  # 25% controlled-background draws. The latter two fractions follow from
+  # splitting the non-FLAM half equally.
+  observed_flux_fraction: 0.50
+  paired_reported_error_fraction: 0.50
+
+  # A stored-FLAM source is paired with an independently generated blank.
+  # FLAM - SIM_FLAM is therefore never a training blank and remains an
+  # independent probe of simulator-residual shortcuts.
+  observed_flux_blank_family: controlled_background
+
+  # Checkpoint selection prioritizes the deployment-like stored observation
+  # while still requiring transfer to a fresh observation realization.
+  validation_view_weights:
+    original: 2.0
+    generated: 1.0

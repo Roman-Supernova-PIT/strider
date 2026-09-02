@@ -1,0 +1,12 @@
+snid,cohort,observed_snr,p_Ia,true_redshift,strider_redshift,absolute_delta_z,reason
+3123010,very_high_snr_alias,8.622018,0.995888,0.240964,0.399865,0.158901,higher-redshift alias; truth is the second reported candidate
+1145554,very_high_snr_alias,7.789943,0.990449,0.920877,0.660611,0.260266,lower-redshift alias whose reported candidates omit the truth
+2181186,very_high_snr_alias,6.502072,0.930385,0.394466,0.530621,0.136155,higher-redshift alias; truth is the third reported candidate
+2795251,very_high_snr_alias,6.103468,1.000000,0.452334,0.326644,0.125691,lower-redshift alias; truth is the second reported candidate
+62978,very_high_snr_alias,5.432270,0.999260,0.345007,1.230495,0.885488,extreme higher-redshift alias; truth is the second reported candidate
+1599087,high_z_0p875_branch,4.142153,0.999995,1.547250,1.233514,0.313736,main high-redshift branch; truth is the third reported candidate
+529724,high_z_0p875_branch,3.029547,0.999971,1.639058,1.308424,0.330634,main high-redshift branch; truth is the second reported candidate
+1272703,high_z_0p875_branch,2.674847,0.999963,1.890615,1.524440,0.366175,main high-redshift branch; truth is the second reported candidate
+1396582,high_z_0p875_branch,2.658477,0.999849,1.731567,1.428136,0.303430,main high-redshift branch; truth is the second reported candidate
+1781201,high_z_other_alias,2.523030,0.999245,1.909887,1.324769,0.585118,high-redshift lower branch whose reported candidates omit the truth
+3017644,accurate_control,9.348734,0.997049,0.911126,0.911264,0.000138,accurate very-high-SNR control that retains two lower-redshift alternatives

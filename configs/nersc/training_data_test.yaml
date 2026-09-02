@@ -1,0 +1,27 @@
+extends: spectral.yaml
+
+project:
+  name: training_data_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/training_data_test
+
+data:
+  # This job checks only the training production while the independent
+  # validation sample is being transferred. It must not be used for selection.
+  source_products:
+  source_dir: ${STRIDER_TRAIN_DIR}
+  split_blocks:
+    train: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  prepared_dir: ${STRIDER_DATA_DIR}/training_data_test
+  max_objects:
+    train: 5000
+    selection: 0
+    calibration: 0
+    test: 0
+  minimum_class_counts:
+    train: 1
+    selection: 0
+    calibration: 0
+    test: 0
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/training_data_test.npz

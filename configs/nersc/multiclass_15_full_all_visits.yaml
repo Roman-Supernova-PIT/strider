@@ -1,0 +1,22 @@
+extends: multiclass_15_full.yaml
+
+project:
+  name: multiclass_15_full_all_visits
+  output_dir: ${STRIDER_OUTPUT_DIR}/multiclass_15_full_all_visits
+
+data:
+  max_visits: all
+  training_visit_counts: [3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128]
+
+training:
+  initial_checkpoint: null
+  batch_by_visit_count: true
+  full_visit_training_fraction: 0.5
+  maximum_visits_per_batch: 512
+  maximum_squared_visits_per_batch: 16384
+
+evaluation:
+  visit_control_repeats: 1
+  visit_control_max_objects: 1600
+  visit_control_selection: span
+  visit_control_counts: [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, all]

@@ -1,0 +1,38 @@
+extends: spectral.yaml
+
+project:
+  name: spectral_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_20k
+
+data:
+  prepared_dir: ${STRIDER_DATA_DIR}/spectral_20k
+  max_objects:
+    train: 20000
+    selection: 5000
+    calibration: 2000
+    # Development preview only. This small cap keeps pilot wiring checks cheap.
+    # Final paper evaluation uses the complete versioned Sundial test role only
+    # after checkpoint selection and calibration are frozen.
+    test: 150
+  minimum_class_counts:
+    train: 5
+    selection: 1
+    calibration: 1
+    test: 0
+  training_sample_by_block: true
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/spectral_20k.npz
+  token_dim: 64
+
+training:
+  epochs: 30
+  warmup_epochs: 3
+  early_stopping_patience: 6
+  batch_size: 16
+  num_workers: 16
+  persistent_workers: true
+  batch_by_visit_count: true
+  benchmark_worker_counts: [8, 16]
+  benchmark_batch_sizes: [8, 16]
+  benchmark_batches: 50

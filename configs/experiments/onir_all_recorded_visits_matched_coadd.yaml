@@ -1,0 +1,9 @@
+extends: onir_all_recorded_visits_coadded.yaml
+
+project:
+  name: sundial_onir_all_recorded_visits_matched_coadd
+  output_dir: runs/sundial_onir_all_recorded_visits_matched_coadd
+
+onir:
+  bank_path: data/local/onir/onir_clean_all_recorded_visits_coadded.npz
+  bank_input_mode: coadded_flux

@@ -1,0 +1,14 @@
+extends: ia_binary_20k_phase_consistency_main.yaml
+
+project:
+  name: ia_binary_20k_peak_date_phase_main
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_peak_date_phase_main
+
+model:
+  # PEAKMJD is an observer-frame light-curve estimate, never simulation truth.
+  # Its uncertainty is integrated independently at every trial redshift.
+  candidate_phase_use_peak_date: true
+  candidate_phase_peak_uncertainty_days: 15.0
+  candidate_phase_peak_quadrature_points: 5
+  candidate_phase_peak_outlier_fraction: 0.10
+  candidate_phase_minimum_coverage_fraction: 0.5

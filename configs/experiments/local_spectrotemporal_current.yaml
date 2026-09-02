@@ -1,0 +1,45 @@
+extends: local_spectrotemporal.yaml
+
+project:
+  name: local_spectrotemporal_current
+  output_dir: runs/local_spectrotemporal_current
+
+data:
+  class_scheme: normal_ia_binary
+  source_products: null
+  source_dir: ${STRIDER_LOCAL_HOURGLASS_DIR}
+  split_blocks:
+    train: [1, 2, 3, 4, 5, 6]
+    selection: [7]
+    calibration: [8]
+    test: [9, 10]
+  prepared_dir: data/local/hourglass_binary_current
+  max_objects:
+    train: 3000
+    selection: 800
+    calibration: 400
+    test: 800
+  runtime_object_limits:
+    train: 1500
+    selection: 400
+    calibration: 200
+    test: 400
+  minimum_class_counts:
+    train: 1
+    selection: 0
+    calibration: 0
+    test: 0
+
+observation:
+  require_complete_wavelength_coverage: true
+
+model:
+  classes: [Ia, other]
+
+onir:
+  bank_path: data/local/onir/hourglass_binary_current.npz
+  minimum_prototype_support: 1
+
+training:
+  epochs: 3
+  early_stopping_patience: 3

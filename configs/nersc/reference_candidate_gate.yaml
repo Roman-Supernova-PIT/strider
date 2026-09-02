@@ -1,0 +1,7 @@
+# Entry point for the active two-epoch reference candidate.
+# This file intentionally resolves to exactly the same configuration as
+# v4_test.yaml, so it can inspect and evaluate that checkpoint without changing
+# its configuration digest. Use nersc/evaluate_reference_candidate.sh: the
+# inherited default evaluation split is calibration, but this gate is selection
+# only.
+extends: v4_test.yaml

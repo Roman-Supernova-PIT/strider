@@ -1,0 +1,39 @@
+extends: ia_binary_full_flam_anchor_control.yaml
+
+project:
+  name: grouped_8_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/grouped_8_full
+
+data:
+  # The full prepared store retains GENTYPE and template identifiers, so the
+  # complete spectra can be relabelled without duplicating the 25+ GB store.
+  class_scheme: grouped_8
+  prepared_dir: ${STRIDER_DATA_DIR}/ia_binary_full
+  max_objects:
+    train: 0
+    selection: 0
+    calibration: 0
+    test: 0
+  minimum_class_counts:
+    train: 5
+    selection: 1
+    calibration: 1
+    test: 0
+
+model:
+  classes:
+    - Ia
+    - 91bg
+    - Iax
+    - H-rich CC
+    - stripped-envelope CC
+    - SLSN
+    - PISN
+    - other
+
+onir:
+  # Class-specific profiles cannot be reused from the binary bank.
+  bank_path: ${STRIDER_DATA_DIR}/onir/grouped_8_full.npz
+
+training:
+  initial_checkpoint: null

@@ -1,0 +1,27 @@
+extends: ia_binary_20k_phase_control_main.yaml
+
+project:
+  name: ia_binary_20k_all_visits_scan_control
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_all_visits_scan_control
+
+data:
+  max_visits: all
+  training_visit_counts: [3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128]
+
+model:
+  dense_scan_view: blend
+
+training:
+  # Freeze the selected all-visit checkpoint at this path before submitting
+  # both matched arms. The source run may then continue independently.
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full_all_visits/dense_scan_baseline_model.pt
+  batch_by_visit_count: true
+  full_visit_training_fraction: 0.5
+  maximum_visits_per_batch: 512
+  maximum_squared_visits_per_batch: 16384
+
+evaluation:
+  visit_control_repeats: 1
+  visit_control_max_objects: 1600
+  visit_control_selection: span
+  visit_control_counts: [1, 2, 4, 8, 16, 24, 32, 48, 64, 96, 128, all]

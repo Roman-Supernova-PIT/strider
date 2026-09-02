@@ -1,0 +1,8 @@
+extends: onir_all_recorded_visits.yaml
+
+project:
+  name: sundial_onir_all_recorded_visits_coadded
+  output_dir: runs/sundial_onir_all_recorded_visits_coadded
+
+onir:
+  input_mode: coadded_flux
