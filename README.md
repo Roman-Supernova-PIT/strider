@@ -8,9 +8,6 @@ measured observer-frame spectra, their reported uncertainties and their
 observation dates. It does not require the transient's true redshift or
 rest-frame phase.
 
-> **Research preview:** STRIDER is not an official Roman mission pipeline or a
-> validated Roman data product.
-
 The frozen calibrated STRIDER baseline remains the verified comparison. The
 reference-based design in this repository is still undergoing matched
 evaluation and is not presented as better or final.
@@ -118,8 +115,7 @@ Related community tools are available through the
 The relevant mission context is NASA's
 [Roman High-Latitude Time-Domain Survey](https://science.nasa.gov/mission/roman-space-telescope/high-latitude-time-domain-survey/).
 
-## Citation and license
+## Citation
 
-Citation metadata is provided in [`CITATION.cff`](CITATION.cff). The repository
-does not yet grant an open-source license; a license and copyright holder must
-be agreed before the first public release.
+Citation metadata is provided in [`CITATION.cff`](CITATION.cff). Publication
+details will be added when available.
