@@ -1,0 +1,18 @@
+extends: onir_named_clean.yaml
+
+project:
+  name: sundial_onir_all_recorded_visits
+  output_dir: runs/sundial_onir_all_recorded_visits
+
+data:
+  # The local Sundial sample has at most 133 visits per object.
+  max_visits: 160
+  training_visit_counts: []
+
+onir:
+  bank_path: data/local/onir/onir_clean_all_recorded_visits_pooled.npz
+  bank_input_mode: individual_visits
+  input_mode: individual_visits
+  # This experiment deliberately pools every recorded simulation phase.
+  profile_rest_phase_min_days: -1000.0
+  profile_rest_phase_max_days: 1000.0

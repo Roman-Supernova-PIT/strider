@@ -1,0 +1,11 @@
+extends: roman_reference_bank_full.yaml
+
+project:
+  name: roman_reference_bank_all_source
+  output_dir: ${STRIDER_OUTPUT_DIR}/roman_reference_bank_all_source
+
+reference:
+  # Traverse the complete flat-training role. Bounded streaming reservoirs keep
+  # memory use fixed before the same compact profiles are constructed.
+  bank_path: ${STRIDER_DATA_DIR}/reference/roman_all_flat_training.npz
+  maximum_training_objects_per_class: 0

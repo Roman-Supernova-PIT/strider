@@ -1,0 +1,17 @@
+extends: ia_binary_20k_roman_reference_attention.yaml
+
+project:
+  name: strider_attention_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/strider_attention_full
+
+data:
+  # Train and select on every object in the prepared flat-redshift roles.
+  # Calibration and final Sundial evaluation remain unused until the
+  # architecture and checkpoint are frozen.
+  prepared_dir: ${STRIDER_DATA_DIR}/ia_binary_full
+  max_objects:
+    train: 0
+    selection: 0
+    calibration: 0
+    test: 0
+  training_sample_by_block: false

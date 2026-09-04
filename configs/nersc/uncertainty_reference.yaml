@@ -1,0 +1,18 @@
+extends: edge_reference.yaml
+
+project:
+  name: uncertainty_reference
+  output_dir: ${STRIDER_OUTPUT_DIR}/uncertainty_reference
+
+model:
+  # Leave the coadd free of a broad signal-quality cut. The reference setting
+  # below removes only bins that are numerically unresolved in float32.
+  coadd_maximum_relative_error: null
+
+reference:
+  bank_path: ${STRIDER_DATA_DIR}/reference/roman_uncertainty_weighted.npz
+  # Retain every bin with resolvable precision. This excludes only simulator
+  # support failures with relative inverse variance below float32 epsilon
+  # (roughly FLAMERR > 2,900 times the spectrum's median error).
+  maximum_relative_coadd_error: null
+  minimum_relative_spectral_precision: 1.1920929e-7

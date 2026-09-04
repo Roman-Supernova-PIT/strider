@@ -1,0 +1,26 @@
+extends: spectral_20k_5epoch.yaml
+
+project:
+  name: spectral_debug
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_debug
+
+data:
+  runtime_object_limits:
+    train: 1500
+    selection: 500
+    calibration: 300
+    test: 100
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/spectral_debug.npz
+  minimum_prototype_support: 1
+
+training:
+  num_workers: 8
+  benchmark_worker_counts: [4, 8]
+  benchmark_batch_sizes: [8, 16]
+  benchmark_batches: 5
+
+evaluation:
+  visit_control_repeats: 1
+  visit_control_counts: [1, 4, 8, 16, 32]

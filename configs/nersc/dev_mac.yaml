@@ -1,0 +1,8 @@
+extends: dev_small.yaml
+
+project:
+  name: dev_mac
+  output_dir: runs/dev_mac
+
+onir:
+  bank_path: data/local/onir/dev_mac.npz

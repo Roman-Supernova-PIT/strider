@@ -1,0 +1,10 @@
+extends: cadence_controlled_all_visit_counts.yaml
+
+project:
+  name: sundial_local_spectral_evolution
+  output_dir: runs/sundial_local_spectral_evolution
+
+model:
+  # Dates enter only through compatibility with changes between spectra.
+  temporal_mode: spectral_evolution
+  temporal_initial_scale: 0.0

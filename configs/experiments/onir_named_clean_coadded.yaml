@@ -1,0 +1,8 @@
+extends: onir_named_clean.yaml
+
+project:
+  name: sundial_local_onir_named_clean_coadded
+  output_dir: runs/sundial_local_onir_named_clean_coadded
+
+onir:
+  input_mode: coadded_flux

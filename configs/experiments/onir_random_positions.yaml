@@ -1,0 +1,10 @@
+extends: onir_named_clean.yaml
+
+project:
+  name: sundial_local_onir_stratified_random_positions
+  output_dir: runs/sundial_local_onir_stratified_random_positions
+
+onir:
+  bank_path: data/local/onir/onir_stratified_random_positions_phase_neutral.npz
+  anchor_mode: random
+  random_anchor_seed: 917

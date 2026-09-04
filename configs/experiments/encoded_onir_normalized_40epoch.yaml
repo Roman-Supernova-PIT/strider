@@ -1,0 +1,14 @@
+extends: encoded_onir_normalized.yaml
+
+project:
+  name: sundial_local_encoded_onir_normalized_40epoch
+  output_dir: runs/sundial_local_encoded_onir_normalized_40epoch
+
+training:
+  epochs: 40
+  # The generated view measures performance under the training noise model.
+  # The clean view checks that the same checkpoint still reads the source.
+  # Equal weights make neither view an after-the-fact veto.
+  validation_view_weights:
+    generated: 1.0
+    clean: 1.0

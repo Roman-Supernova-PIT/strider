@@ -1,0 +1,22 @@
+extends: ia_binary_20k_roman_reference.yaml
+
+project:
+  name: ia_binary_20k_roman_reference_attention
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_roman_reference_attention
+
+model:
+  # Prefer reported uncertainties but remain usable when an external spectrum
+  # supplies only wavelength, flux, and a measurement mask.
+  coadd_weighting: automatic
+
+reference:
+  # Learn local spectral structure at three velocity scales, then use one
+  # compact attention block to connect separated wavelength regions. The
+  # explicit class--redshift reference scan remains the source of inference.
+  spectral_encoder: multiscale_attention
+  token_dim: 32
+  token_pool_size: 4
+  minimum_encoder_support: 0.5
+  attention_heads: 4
+  sequence_combination: continuous_time_attention
+  time_attention_hidden_dim: 16

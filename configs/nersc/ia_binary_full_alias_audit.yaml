@@ -1,0 +1,7 @@
+extends: ia_binary_full_main.yaml
+
+evaluation:
+  split: test
+  evidence_map_view: original
+  evidence_map_object_list: analysis/sundial_alias_audit_snids.csv
+  competing_peak_mass_ratio: 0.5

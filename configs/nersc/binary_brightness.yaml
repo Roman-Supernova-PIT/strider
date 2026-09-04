@@ -1,0 +1,16 @@
+extends: binary.yaml
+
+project:
+  name: binary_brightness
+  output_dir: ${STRIDER_OUTPUT_DIR}/binary_brightness
+
+reference:
+  # Follow spectral-shape and within-object flux evolution across the selected
+  # observations. One overall flux scale is removed from every object.
+  sequence_combination: temporal_transformer
+  temporal_hidden_dim: 32
+  temporal_attention_heads: 4
+  temporal_layers: 1
+  temporal_feedforward_multiplier: 2
+  temporal_initial_correction_scale: 0.10
+  relative_flux_evolution: true

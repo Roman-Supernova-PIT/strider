@@ -1,0 +1,9 @@
+extends: ia_binary_20k.yaml
+
+project:
+  name: ia_binary_20k_noise_mix
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_noise_mix
+
+training:
+  noise_scale_augmentation_fraction: 0.10
+  noise_scale_range: [0.25, 1.25]

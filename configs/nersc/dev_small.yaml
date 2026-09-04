@@ -1,0 +1,42 @@
+extends: spectral.yaml
+
+project:
+  name: dev_small
+  output_dir: ${STRIDER_OUTPUT_DIR}/dev_small
+
+data:
+  prepared_dir: ${STRIDER_DATA_DIR}/dev_small
+  max_objects:
+    train: 300
+    selection: 150
+    calibration: 150
+    test: 150
+  minimum_class_counts:
+    train: 1
+    selection: 0
+    calibration: 0
+    test: 0
+  max_visits: 4
+  training_visit_counts: [2, 4]
+
+observation:
+  wavelength_bins: 256
+
+model:
+  rest_wavelength_bins: 160
+  redshift_bins: 80
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/dev_small.npz
+  maximum_radius_bins: 7
+  allow_radius_clipping: true
+  minimum_prototype_support: 1
+
+training:
+  epochs: 1
+  learning_rate_schedule: constant
+  warmup_epochs: 0
+  batch_size: 4
+  num_workers: 0
+  persistent_workers: false
+  early_stopping_patience: 1

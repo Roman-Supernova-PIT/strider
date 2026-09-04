@@ -1,0 +1,30 @@
+extends: local_factored_check.yaml
+
+project:
+  name: local_spectrotemporal
+  output_dir: runs/local_spectrotemporal
+
+model:
+  full_spectrum_context: true
+  context_token_dim: 64
+  context_patch_size: 8
+  context_attention_heads: 4
+  context_attention_layers: 2
+  context_visit_attention: true
+  context_initial_scale: 0.25
+  context_input_normalization: per_visit
+  context_minimum_support: 0.5
+  evidence_use_visit_count_and_span: false
+
+observation:
+  # This old local subset predates the fixed-coverage metadata. It is used only
+  # for a quick engineering check; science comparisons use freshly prepared data.
+  require_complete_wavelength_coverage: false
+
+training:
+  epochs: 3
+  warmup_epochs: 1
+  paired_reported_error_fraction: 0.0
+  benchmark_worker_counts: [0]
+  benchmark_batch_sizes: [2, 4, 8]
+  benchmark_batches: 5

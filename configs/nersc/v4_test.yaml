@@ -1,0 +1,18 @@
+# Historical internal run name retained because it is part of the active
+# checkpoint's resolved configuration. Public documentation should use
+# reference_candidate_gate.yaml instead. Evaluate this candidate on selection
+# only; the inherited calibration default is not its current gate.
+extends: uncertainty_8_test.yaml
+
+project:
+  name: v4_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/v4_test
+
+reference:
+  # Use S/N for measurement weighting, visit selection and reporting, but do
+  # not expose it as a learned class--redshift input.
+  temporal_use_signal_to_noise: false
+
+training:
+  # Short integration gate on the matched 20k development cohort.
+  epochs: 2

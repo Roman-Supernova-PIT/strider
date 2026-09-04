@@ -1,0 +1,11 @@
+extends: ia_binary_full_flam_anchor.yaml
+
+project:
+  name: ia_binary_full_flam_anchor_control
+  seed: 73031
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_flam_anchor_control
+
+training:
+  # Matched full-sample control: the same architecture, seed, augmentation
+  # and checkpoint selection, with no stored FLAM used for gradient updates.
+  observed_flux_fraction: 0.0

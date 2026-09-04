@@ -1,0 +1,13 @@
+# This is the fast end-to-end cluster check. The larger storage measurement is
+# separate so it cannot delay basic preparation, model and GPU verification.
+extends: dev_small.yaml
+
+project:
+  name: dev
+  output_dir: ${STRIDER_OUTPUT_DIR}/dev
+
+training:
+  batch_size: 2
+  benchmark_batch_sizes: [2]
+  benchmark_worker_counts: [1, 4]
+  benchmark_batches: 2

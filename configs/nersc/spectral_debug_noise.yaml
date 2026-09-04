@@ -1,0 +1,10 @@
+extends: spectral_debug_20epoch.yaml
+
+project:
+  name: spectral_debug_noise
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_debug_noise
+
+training:
+  # Each source/no-source pair shares either controlled or reported-error noise.
+  # The original SNANA residual remains unseen for the independent check.
+  paired_reported_error_fraction: 0.5

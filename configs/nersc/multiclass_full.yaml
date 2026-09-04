@@ -1,0 +1,21 @@
+extends: multiclass_20k.yaml
+
+project:
+  name: multiclass_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/multiclass_full
+
+data:
+  prepared_dir: ${STRIDER_DATA_DIR}/ia_binary_full
+  max_objects:
+    train: 0
+    selection: 0
+    calibration: 0
+    test: 0
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/multiclass_full.npz
+
+training:
+  epochs: 50
+  warmup_epochs: 5
+  early_stopping_patience: 8

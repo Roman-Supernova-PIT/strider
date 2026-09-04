@@ -1,0 +1,25 @@
+extends: dev.yaml
+
+project:
+  name: dev_sundial
+  output_dir: ${STRIDER_OUTPUT_DIR}/dev_sundial
+
+data:
+  # This temporary split lets the cluster pipeline run while the independent
+  # flat-redshift validation production is still being transferred.
+  source_products:
+    flat_validation:
+      source_dir: ${STRIDER_TEST_DIR}
+      split_blocks:
+        selection: [1, 2, 3, 4, 5, 6]
+        calibration: [7, 8]
+    sundial_final:
+      source_dir: ${STRIDER_TEST_DIR}
+      split_blocks:
+        test: [9, 10]
+
+  # Separate paths keep this temporary prepared sample away from the final one.
+  prepared_dir: ${STRIDER_DATA_DIR}/dev_sundial
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/dev_sundial.npz

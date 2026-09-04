@@ -1,0 +1,8 @@
+extends: spectral_20k.yaml
+
+project:
+  name: spectral_20k_large
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_20k_large
+
+onir:
+  token_dim: 128

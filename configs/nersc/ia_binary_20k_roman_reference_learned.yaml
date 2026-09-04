@@ -1,0 +1,16 @@
+extends: ia_binary_20k_roman_reference.yaml
+
+project:
+  name: ia_binary_20k_roman_reference_learned
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_roman_reference_learned
+
+reference:
+  # The same physical bank and all other settings are shared with the direct
+  # control. This candidate learns local spectral features and how much each
+  # measured visit contributes to sequence consistency.
+  spectral_encoder: shared_cnn
+  token_dim: 8
+  token_pool_size: 2
+  minimum_encoder_support: 0.5
+  sequence_combination: continuous_time_attention
+  time_attention_hidden_dim: 16

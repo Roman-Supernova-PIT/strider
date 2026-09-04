@@ -1,0 +1,8 @@
+extends: ia_binary_20k_flam_control.yaml
+
+project:
+  name: ia_binary_20k_flam
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_flam
+
+training:
+  observed_flux_fraction: 0.3333333333333333

@@ -1,0 +1,41 @@
+extends: ../nersc/spectral.yaml
+
+project:
+  name: local_spectral_check
+  output_dir: runs/local_spectral_check
+
+data:
+  prepared_dir: data/local/hourglass_15class_development_test_with_rare_classes
+  runtime_object_limits:
+    train: 300
+    selection: 150
+    calibration: 60
+    test: 150
+  max_visits: 8
+  training_visit_counts: [2, 4, 8]
+
+observation:
+  wavelength_bins: 256
+
+model:
+  rest_wavelength_bins: 160
+  redshift_bins: 80
+
+onir:
+  bank_path: data/local/onir/clean_phase_neutral_15class_development_test_with_rare_classes.npz
+  maximum_radius_bins: 7
+  allow_radius_clipping: true
+  minimum_prototype_support: 1
+
+training:
+  epochs: 6
+  warmup_epochs: 1
+  batch_size: 8
+  num_workers: 0
+  persistent_workers: false
+  mixed_precision: float32
+  early_stopping_patience: 6
+
+evaluation:
+  split: calibration
+  views: [original, generated, clean]

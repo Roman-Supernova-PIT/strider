@@ -4,43 +4,47 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "roman-snpit-strider"
-version = "0.2.0"
-description = "STRIDER inference for Roman supernova spectral time series"
+version = "0.3.0.dev0"
+description = "Observer-frame transient classification and redshift research tool for Roman-like prism spectra."
 readme = "README.md"
 requires-python = ">=3.11"
-authors = [{name = "Mitchell Dixon"}]
+authors = [
+  {name = "Mitchell Dixon"},
+  {name = "David Jones"},
+  {name = "K. Anumba"},
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Astronomy",
+]
 dependencies = [
-    "astropy>=5.0",
-    "cmasher>=1.8",
-    "matplotlib>=3.7",
-    "numpy>=1.24",
-    "pillow>=10",
-    "torch>=2.0",
+  "astropy>=7",
+  "cmasher>=1.9",
+  "h5py>=3.10",
+  "matplotlib>=3.9",
+  "numpy>=1.26",
+  "pandas>=2.2",
+  "Pillow>=10",
+  "pyarrow>=18",
+  "PyYAML>=6",
+  "scikit-learn>=1.5",
+  "torch>=2.5",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "ruff==0.12.0",
+  "pytest>=8",
+  "ruff==0.12.0",
 ]
 
 [project.scripts]
 strider = "strider.cli:main"
 
-[project.urls]
-Repository = "https://github.com/mdixon741/strider"
-Issues = "https://github.com/mdixon741/strider/issues"
-
 [tool.setuptools.packages.find]
-include = ["strider*"]
+where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --tb=short"
-markers = [
-    "model: requires the production model file",
-]
-
-[tool.ruff]
-line-length = 100
-target-version = "py311"
+pythonpath = ["src"]

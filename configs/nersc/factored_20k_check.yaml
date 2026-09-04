@@ -1,0 +1,14 @@
+extends: factored_20k.yaml
+
+project:
+  name: factored_20k_check
+  output_dir: ${STRIDER_OUTPUT_DIR}/factored_20k_check
+
+model:
+  evidence_use_visit_count_and_span: false
+
+training:
+  epochs: 10
+  warmup_epochs: 2
+  early_stopping_patience: 4
+  paired_reported_error_fraction: 0.5

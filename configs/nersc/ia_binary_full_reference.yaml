@@ -1,0 +1,15 @@
+extends: ia_binary_full.yaml
+
+project:
+  name: ia_binary_full_reference
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_reference
+
+model:
+  full_spectrum_context: false
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/ia_binary_full_reference.npz
+
+training:
+  paired_reported_error_fraction: 0.0
+  noise_scale_augmentation_fraction: 0.0

@@ -1,0 +1,12 @@
+extends: brightness_test.yaml
+
+project:
+  name: brightness_no_snr_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/brightness_no_snr_test
+
+reference:
+  # Preserve the matched spectral, temporal, and relative-flux model while
+  # preventing measurement S/N from becoming a learned class--redshift input.
+  # Reported uncertainties still form the coadd and select the best measured
+  # visit within each time segment.
+  temporal_use_signal_to_noise: false

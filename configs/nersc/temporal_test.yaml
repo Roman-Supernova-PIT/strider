@@ -1,0 +1,16 @@
+extends: classes_test.yaml
+
+project:
+  name: temporal_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/temporal_test
+
+reference:
+  # Compare the ordered evolution of the six measured observation summaries.
+  # The coadded spectrum, physical references and class--redshift scan remain
+  # unchanged from the matched 15-class test.
+  sequence_combination: temporal_transformer
+  temporal_hidden_dim: 32
+  temporal_attention_heads: 4
+  temporal_layers: 1
+  temporal_feedforward_multiplier: 2
+  temporal_initial_correction_scale: 0.10

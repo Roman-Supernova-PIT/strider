@@ -1,0 +1,20 @@
+extends: ia_binary_full_flam_anchor_control.yaml
+
+project:
+  name: ia_binary_full_main
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_main
+
+training:
+  # Definitive fresh training of the frozen architecture. The earlier
+  # full-sample run showed useful warmup learning but became unstable near a
+  # global rate of 1e-3, so this schedule lowers the peak while retaining a
+  # long cosine refinement period.
+  initial_checkpoint: null
+  epochs: 50
+  learning_rate: 0.0006
+  learning_rate_schedule: cosine
+  warmup_epochs: 5
+  minimum_learning_rate_fraction: 0.05
+  # Do not stop during the high-rate representation-learning phase. With a
+  # 50-epoch ceiling this still permits stopping after a genuine long plateau.
+  early_stopping_patience: 25

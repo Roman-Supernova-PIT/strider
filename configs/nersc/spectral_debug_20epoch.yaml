@@ -1,0 +1,10 @@
+extends: spectral_debug.yaml
+
+project:
+  name: spectral_debug_20epoch
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_debug_20epoch
+
+training:
+  epochs: 20
+  warmup_epochs: 2
+  early_stopping_patience: 8

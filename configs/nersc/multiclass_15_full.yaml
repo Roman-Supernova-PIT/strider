@@ -1,0 +1,35 @@
+extends: ia_binary_full_main.yaml
+
+project:
+  name: multiclass_15_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/multiclass_15_full
+
+data:
+  # This exploratory run keeps every simulated subtype separate while sharing
+  # the prepared objects and all non-label choices with the primary model.
+  class_scheme: hourglass_15
+
+model:
+  classes:
+    - Ia
+    - 91bg
+    - Iax
+    - IIP
+    - IIL
+    - IIb
+    - IIn
+    - Ib
+    - Ic
+    - Ic-BL
+    - SLSN
+    - TDE
+    - ILOT
+    - KN
+    - PISN
+
+onir:
+  # The fine-label model cannot reuse binary or grouped reference profiles.
+  bank_path: ${STRIDER_DATA_DIR}/onir/multiclass_15_full.npz
+
+training:
+  initial_checkpoint: null

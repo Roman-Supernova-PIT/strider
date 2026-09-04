@@ -1,6 +1,0 @@
-file,phase_days,object_id,true_class,true_redshift
-spectrum_01.csv,-15.000000,SN20088677_ou,Ia,0.120000
-spectrum_02.csv,-7.000000,SN20088677_ou,Ia,0.120000
-spectrum_03.csv,0.000000,SN20088677_ou,Ia,0.120000
-spectrum_04.csv,7.000000,SN20088677_ou,Ia,0.120000
-spectrum_05.csv,15.000000,SN20088677_ou,Ia,0.120000

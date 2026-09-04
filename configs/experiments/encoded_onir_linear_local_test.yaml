@@ -1,0 +1,8 @@
+extends: encoded_onir_normalized_local_test.yaml
+
+project:
+  name: sundial_local_encoded_onir_linear_development_test
+  output_dir: runs/sundial_local_encoded_onir_linear_development_test
+
+onir:
+  token_activation: linear
