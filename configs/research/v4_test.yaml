@@ -1,0 +1,17 @@
+# Use reference_candidate_gate.yaml as the entry point.
+# The run name is retained for checkpoint compatibility. Pass --split selection
+# when evaluating for model selection; the inherited default is calibration.
+extends: uncertainty_8_test.yaml
+
+project:
+  name: v4_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/v4_test
+
+reference:
+  # Use S/N for measurement weighting, visit selection and reporting, but do
+  # not expose it as a learned class--redshift input.
+  temporal_use_signal_to_noise: false
+
+training:
+  # Two-epoch training check on the 20k development sample.
+  epochs: 2

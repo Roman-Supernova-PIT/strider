@@ -1,0 +1,12 @@
+extends: spectral_full_bank.yaml
+
+project:
+  name: factored_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/factored_20k
+
+model:
+  architecture: factored_onir
+  temporal_mode: spectral_evolution
+  temporal_initial_scale: 0.0
+  factored_attention_heads: 4
+  factored_shape_initial_scale: 0.5

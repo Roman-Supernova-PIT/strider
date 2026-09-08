@@ -1,0 +1,8 @@
+extends: local_spectral_check.yaml
+
+project:
+  name: local_time_check
+  output_dir: runs/local_time_check
+
+training:
+  timing_baseline_epochs: 12

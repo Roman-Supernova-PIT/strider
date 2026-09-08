@@ -1,0 +1,8 @@
+extends: spectral_20k.yaml
+
+project:
+  name: spectral_full_bank
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_full_bank
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/full_flat.npz

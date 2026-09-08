@@ -1,0 +1,19 @@
+extends: onir_named_clean.yaml
+
+project:
+  name: sundial_local_encoded_onir_named_clean
+  output_dir: runs/sundial_local_encoded_onir_named_clean
+
+model:
+  architecture: encoded_onir
+  temporal_mode: none
+
+onir:
+  bank_path: data/local/onir/onir_named_phase_neutral_v2.npz
+  profile_initialization: clean_prototypes
+  token_dim: 16
+  encoded_samples_per_feature: 9
+  encoded_sample_extent_fraction: 0.8
+  minimum_encoder_support: 0.5
+  minimum_prototype_support: 5
+  coverage_log_weight: 0.2

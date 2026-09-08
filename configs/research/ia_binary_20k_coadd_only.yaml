@@ -1,0 +1,16 @@
+extends: ia_binary_20k_all_visits_detail_scan.yaml
+
+project:
+  name: ia_binary_20k_coadd_only
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_coadd_only
+
+data:
+  # The dense coadd receives the uncertainty belonging to the actual view.
+  include_flux_error_channel: true
+
+model:
+  # Change only dense aggregation at this first gate. Named-region and temporal
+  # paths continue to inspect individual visits exactly as in the control.
+  dense_scan_input_mode: inverse_variance_coadd
+  coadd_maximum_relative_error: 3.0
+  coadd_edge_trim_fraction: 0.05

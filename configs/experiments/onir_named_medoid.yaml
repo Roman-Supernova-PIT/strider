@@ -1,0 +1,8 @@
+extends: onir_named_clean.yaml
+
+project:
+  name: sundial_local_onir_named_medoid
+  output_dir: runs/sundial_local_onir_named_medoid
+
+onir:
+  profile_initialization: medoid

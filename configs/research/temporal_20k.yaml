@@ -1,0 +1,16 @@
+extends: spectral_20k.yaml
+
+project:
+  name: temporal_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/temporal_20k
+
+model:
+  temporal_mode: spectral_evolution
+  temporal_initial_scale: 0.0
+
+training:
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/spectral_20k/best_model.pt
+  temporal_only: true
+  epochs: 12
+  warmup_epochs: 1
+  early_stopping_patience: 4

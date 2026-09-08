@@ -1,0 +1,20 @@
+extends: ia_binary_full_from_scratch.yaml
+
+project:
+  name: ia_binary_full_flam_anchor
+  seed: 73031
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_flam_anchor
+
+training:
+  # Source views: 50% stored SNANA FLAM, 25% fresh FLAMERR draws and
+  # 25% controlled-background draws. Stored sources are paired with an
+  # independent blank so FLAM - SIM_FLAM remains an unseen diagnostic.
+  observed_flux_fraction: 0.50
+  paired_reported_error_fraction: 0.50
+  observed_flux_blank_family: controlled_background
+
+  # Prefer checkpoints that work on the deployment-like stored observation
+  # while retaining transfer to independently generated noise.
+  validation_view_weights:
+    original: 2.0
+    generated: 1.0

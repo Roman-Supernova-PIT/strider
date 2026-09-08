@@ -1,0 +1,18 @@
+extends: ia_binary_full_flam_anchor_control.yaml
+
+project:
+  name: ia_binary_full_refinement
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_refinement
+
+training:
+  # The full-rate run establishes the representation. This stage starts from
+  # its best multi-view checkpoint and refines it with a fresh optimizer at a
+  # lower rate, leaving the original run and checkpoint untouched.
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full_flam_anchor_control/best_model.pt
+  epochs: 12
+  learning_rate: 0.0002
+  learning_rate_schedule: cosine
+  warmup_epochs: 0
+  minimum_learning_rate_fraction: 0.10
+  # Complete the planned decay; select the best epoch afterwards.
+  early_stopping_patience: 12

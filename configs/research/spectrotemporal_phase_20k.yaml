@@ -1,0 +1,13 @@
+extends: spectrotemporal_20k.yaml
+
+project:
+  name: spectrotemporal_phase_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectrotemporal_phase_20k
+
+model:
+  phase_auxiliary_bins: 15
+  phase_auxiliary_min_days: -20.0
+  phase_auxiliary_max_days: 50.0
+
+training:
+  phase_loss_weight: 0.25

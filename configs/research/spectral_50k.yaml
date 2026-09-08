@@ -1,0 +1,19 @@
+extends: spectral_full_bank.yaml
+
+project:
+  name: spectral_50k
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_50k
+
+data:
+  prepared_dir: ${STRIDER_DATA_DIR}/spectral_50k
+  max_objects:
+    train: 50000
+
+model:
+  evidence_use_visit_count_and_span: false
+
+training:
+  epochs: 12
+  warmup_epochs: 2
+  early_stopping_patience: 5
+  paired_reported_error_fraction: 0.5

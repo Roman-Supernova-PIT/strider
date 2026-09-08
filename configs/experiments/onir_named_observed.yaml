@@ -1,0 +1,9 @@
+extends: onir_named_clean.yaml
+
+project:
+  name: sundial_local_onir_named_observed
+  output_dir: runs/sundial_local_onir_named_observed
+
+onir:
+  bank_path: data/local/onir/onir_named_observed_phase_neutral.npz
+  bank_view: original

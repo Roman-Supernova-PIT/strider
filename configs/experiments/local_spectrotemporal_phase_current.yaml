@@ -1,0 +1,13 @@
+extends: local_spectrotemporal_current.yaml
+
+project:
+  name: local_spectrotemporal_phase_current
+  output_dir: runs/local_spectrotemporal_phase_current
+
+model:
+  phase_auxiliary_bins: 15
+  phase_auxiliary_min_days: -20.0
+  phase_auxiliary_max_days: 50.0
+
+training:
+  phase_loss_weight: 0.25

@@ -1,0 +1,13 @@
+# Small sample for data preparation, model and GPU checks.
+# Larger storage tests use a separate configuration.
+extends: dev_small.yaml
+
+project:
+  name: dev
+  output_dir: ${STRIDER_OUTPUT_DIR}/dev
+
+training:
+  batch_size: 2
+  benchmark_batch_sizes: [2]
+  benchmark_worker_counts: [1, 4]
+  benchmark_batches: 2

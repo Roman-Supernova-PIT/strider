@@ -1,0 +1,17 @@
+extends: ia_binary_full.yaml
+
+project:
+  name: ia_binary_full_low_noise
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_low_noise
+
+training:
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full/best_model.pt
+  epochs: 6
+  learning_rate: 0.0002
+  warmup_epochs: 1
+  early_stopping_patience: 3
+  noise_scale_augmentation_fraction: 0.15
+  noise_scale_range: [0.05, 0.75]
+  validation_view_weights:
+    generated: 0.9
+    clean: 0.1

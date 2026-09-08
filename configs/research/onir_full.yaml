@@ -1,0 +1,11 @@
+extends: build_onir.yaml
+
+project:
+  name: onir_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/onir_full
+
+data:
+  prepared_dir: ${STRIDER_DATA_DIR}/train
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/full_flat.npz

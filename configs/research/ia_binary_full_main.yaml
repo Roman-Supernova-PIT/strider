@@ -1,0 +1,16 @@
+extends: ia_binary_full_flam_anchor_control.yaml
+
+project:
+  name: ia_binary_full_main
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_main
+
+training:
+  # Start from scratch with a five-epoch warm-up followed by cosine decay.
+  initial_checkpoint: null
+  epochs: 50
+  learning_rate: 0.0006
+  learning_rate_schedule: cosine
+  warmup_epochs: 5
+  minimum_learning_rate_fraction: 0.05
+  # Allow 25 epochs without improvement before early stopping.
+  early_stopping_patience: 25

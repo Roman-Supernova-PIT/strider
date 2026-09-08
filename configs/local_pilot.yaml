@@ -1,0 +1,55 @@
+project:
+  name: sundial_local_pilot
+  seed: 73031
+  output_dir: runs/sundial_local_pilot
+
+data:
+  class_scheme: normal_ia_binary
+  source_dir: ${STRIDER_SUNDIAL_DIR}
+  prepared_dir: data/local/sundial_pilot
+  train_blocks: [1, 2, 3, 4, 5, 6, 7]
+  validation_blocks: [8]
+  test_blocks: [9, 10]
+  max_objects:
+    train: 1200
+    validation: 300
+    test: 500
+  redshift_edges: [0.0, 0.75, 1.25, 1.75, 2.25, 3.1]
+  max_visits: 12
+
+observation:
+  wavelength_min: 7500.0
+  wavelength_max: 18175.0
+  wavelength_bins: 256
+  require_complete_wavelength_coverage: true
+  generated_noise:
+    background_shape_strength: 0.20
+    background_scale_log_std: 0.20
+    source_variance_fraction: 0.0
+  no_source_fraction: 0.25
+
+model:
+  rest_wavelength_min: 2500.0
+  rest_wavelength_max: 10000.0
+  rest_wavelength_bins: 160
+  redshift_min: 0.05
+  redshift_max: 3.0
+  redshift_bins: 60
+  hidden_dim: 64
+  phase_features: 16
+  use_phase: true
+  dropout: 0.10
+  classes: [Ia, other]
+
+training:
+  epochs: 20
+  batch_size: 24
+  learning_rate: 0.0008
+  weight_decay: 0.0001
+  num_workers: 0
+  early_stopping_patience: 3
+  evidence_sufficiency_loss_weight: 0.25
+
+evaluation:
+  views: [original, generated]
+  outlier_delta_z: 0.10

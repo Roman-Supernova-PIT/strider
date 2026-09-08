@@ -1,0 +1,15 @@
+extends: ia_binary_20k_recipe_reference.yaml
+
+project:
+  name: ia_binary_20k_flam_stress
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_flam_stress
+
+training:
+  # Deliberate shortcut stress test, not a candidate training recipe. Every
+  # source example uses the one stored SNANA FLAM realization. Paired blanks
+  # use independently generated controlled backgrounds, leaving FLAM-SIM_FLAM
+  # residuals unseen so they remain a valid probe of learned simulator noise.
+  observed_flux_fraction: 1.0
+  observed_flux_blank_family: controlled_background
+  paired_reported_error_fraction: 0.0
+  noise_scale_augmentation_fraction: 0.0

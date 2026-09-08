@@ -1,0 +1,11 @@
+extends: spectral.yaml
+
+project:
+  name: spectral_scaled
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_scaled
+
+onir:
+  # The loader has already divided each visit by one background-noise scale.
+  # Keeping that scale here tests whether absolute signal strength helps the
+  # spectral matcher reject weak inputs.
+  input_normalization: none

@@ -1,0 +1,23 @@
+extends: factored_20k.yaml
+
+project:
+  name: spectrotemporal_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectrotemporal_20k
+
+model:
+  full_spectrum_context: true
+  context_token_dim: 96
+  context_patch_size: 8
+  context_attention_heads: 4
+  context_attention_layers: 2
+  context_visit_attention: true
+  context_initial_scale: 0.25
+  context_input_normalization: per_visit
+  context_minimum_support: 0.5
+  evidence_use_visit_count_and_span: false
+
+training:
+  paired_reported_error_fraction: 0.0
+
+evaluation:
+  ia_redshift_edges: [0.0, 0.5, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.5, 3.0]

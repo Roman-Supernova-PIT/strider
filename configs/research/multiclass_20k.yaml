@@ -1,0 +1,5 @@
+extends: spectrotemporal_noise_20k.yaml
+
+project:
+  name: multiclass_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/multiclass_20k

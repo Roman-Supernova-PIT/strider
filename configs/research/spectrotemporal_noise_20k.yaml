@@ -1,0 +1,8 @@
+extends: spectrotemporal_20k.yaml
+
+project:
+  name: spectrotemporal_noise_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectrotemporal_noise_20k
+
+training:
+  paired_reported_error_fraction: 0.5

@@ -1,0 +1,11 @@
+extends: ia_binary_20k_phase_control_main.yaml
+
+project:
+  name: ia_binary_20k_whole_spectrum_minimum_75
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_whole_spectrum_minimum_75
+
+model:
+  # Test a whole-spectrum-primary matcher while retaining continuum-subtracted
+  # detail as a bounded refinement rather than removing it.
+  dense_minimum_whole_weight: 0.75
+  dense_initial_detail_weight: 0.125

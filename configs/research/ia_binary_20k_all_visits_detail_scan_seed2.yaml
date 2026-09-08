@@ -1,0 +1,6 @@
+extends: ia_binary_20k_all_visits_detail_scan.yaml
+
+project:
+  name: ia_binary_20k_all_visits_detail_scan_seed2
+  seed: 73032
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_all_visits_detail_scan_seed2

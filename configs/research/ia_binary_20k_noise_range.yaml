@@ -1,0 +1,11 @@
+extends: ia_binary_20k.yaml
+
+project:
+  name: ia_binary_20k_noise_range
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_noise_range
+
+training:
+  # Most examples retain the expected noise. The remainder prevent absence of
+  # noise from becoming an unfamiliar input rather than a source-quality limit.
+  noise_scale_augmentation_fraction: 0.25
+  noise_scale_range: [0.0, 1.0]

@@ -1,0 +1,13 @@
+extends: ia_binary_20k_observed_flux_only.yaml
+
+project:
+  name: ia_binary_20k_observed_flux_error
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_observed_flux_error
+
+data:
+  # Add log(FLAMERR / visit uncertainty scale) as an experimental input.
+  include_flux_error_channel: true
+
+model:
+  use_flux_error_channel: true
+  flux_error_initial_scale: 0.1

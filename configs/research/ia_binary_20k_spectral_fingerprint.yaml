@@ -1,0 +1,13 @@
+extends: ia_binary_20k_dense_scan.yaml
+
+project:
+  name: ia_binary_20k_spectral_fingerprint
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_spectral_fingerprint
+
+model:
+  full_spectrum_context: false
+  dense_continuum_detail: true
+  dense_initial_detail_weight: 0.5
+  dense_continuum_sigma_km_s: 12000.0
+  relative_brightness_evolution: true
+  relative_brightness_initial_scale: 0.0

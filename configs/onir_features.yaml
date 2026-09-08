@@ -1,0 +1,21 @@
+version: strider_onir_phase_neutral_v1
+description: >
+  Broad rest-frame spectral regions used as physical wavelength anchors.
+  Class labels are deliberately absent: unsupported training coverage and
+  physical feature absence must not be confused.
+features:
+  - {name: Ca_II_HK, rest_wavelength: 3945.0, half_width_kms: 20000}
+  - {name: Ti_Mg_Fe_4300, rest_wavelength: 4300.0, half_width_kms: 14000}
+  - {name: Fe_II_4555, rest_wavelength: 4555.0, half_width_kms: 18000}
+  - {name: Fe_Mg_4861_region, rest_wavelength: 4861.0, half_width_kms: 18000}
+  - {name: Fe_5000_blend, rest_wavelength: 5080.0, half_width_kms: 20000}
+  - {name: S_II_5454, rest_wavelength: 5454.0, half_width_kms: 14000}
+  - {name: S_II_5620, rest_wavelength: 5620.0, half_width_kms: 14000}
+  - {name: He_Na_5885, rest_wavelength: 5885.0, half_width_kms: 22000}
+  - {name: Si_II_5972, rest_wavelength: 5972.0, half_width_kms: 15000}
+  - {name: Si_II_6355, rest_wavelength: 6355.0, half_width_kms: 18000}
+  - {name: H_alpha_6563, rest_wavelength: 6563.0, half_width_kms: 20000}
+  - {name: He_I_6678, rest_wavelength: 6678.0, half_width_kms: 22000}
+  - {name: He_I_7065, rest_wavelength: 7065.0, half_width_kms: 22000}
+  - {name: O_I_7774, rest_wavelength: 7774.0, half_width_kms: 30000}
+  - {name: Ca_II_NIR, rest_wavelength: 8579.0, half_width_kms: 30000}

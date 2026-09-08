@@ -1,0 +1,10 @@
+extends: factored_20k_check.yaml
+
+project:
+  name: factored_20k_background
+  output_dir: ${STRIDER_OUTPUT_DIR}/factored_20k_background
+
+onir:
+  # The loader has already divided each visit by a background-noise scale.
+  # This retains source strength in the spectral and temporal branches.
+  input_normalization: none

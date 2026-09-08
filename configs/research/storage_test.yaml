@@ -1,0 +1,21 @@
+extends: spectral.yaml
+
+project:
+  name: storage_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/storage_test
+
+data:
+  prepared_dir: ${STRIDER_DATA_DIR}/storage_test
+  max_objects:
+    train: 5000
+    selection: 1000
+    calibration: 500
+    test: 1000
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/storage_test.npz
+
+training:
+  benchmark_worker_counts: [1, 2, 4, 8, 16]
+  benchmark_batch_sizes: [2, 4, 8]
+  benchmark_batches: 200

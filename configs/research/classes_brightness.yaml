@@ -1,0 +1,31 @@
+extends: binary_brightness.yaml
+
+project:
+  name: classes_brightness
+  output_dir: ${STRIDER_OUTPUT_DIR}/classes_brightness
+
+data:
+  class_scheme: hourglass_15
+  minimum_class_counts:
+    train: 5
+    selection: 1
+    calibration: 1
+    test: 0
+
+model:
+  classes:
+    - Ia
+    - 91bg
+    - Iax
+    - IIP
+    - IIL
+    - IIb
+    - IIn
+    - Ib
+    - Ic
+    - Ic-BL
+    - SLSN
+    - TDE
+    - ILOT
+    - KN
+    - PISN

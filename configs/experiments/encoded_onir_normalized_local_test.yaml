@@ -1,0 +1,9 @@
+extends: encoded_onir_local_test.yaml
+
+project:
+  name: sundial_local_encoded_onir_normalized_development_test
+  output_dir: runs/sundial_local_encoded_onir_normalized_development_test
+
+onir:
+  input_normalization: per_visit
+  token_activation: gelu

@@ -1,0 +1,28 @@
+extends: ia_binary_full_main.yaml
+
+project:
+  name: grouped_7_full
+  output_dir: ${STRIDER_OUTPUT_DIR}/grouped_7_full
+
+data:
+  # Reuse the prepared full store and relabel from its retained GENTYPE and
+  # template identifiers. PISN joins the catch-all group so SLSN remains a
+  # distinct Roman science output without claiming a separate PISN classifier.
+  class_scheme: grouped_7
+
+model:
+  classes:
+    - Ia
+    - 91bg
+    - Iax
+    - H-rich CC
+    - stripped-envelope CC
+    - SLSN
+    - other
+
+onir:
+  # Every class scheme requires profiles built with the same output labels.
+  bank_path: ${STRIDER_DATA_DIR}/onir/grouped_7_full.npz
+
+training:
+  initial_checkpoint: null

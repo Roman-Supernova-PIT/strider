@@ -1,0 +1,11 @@
+extends: uncertainty_test.yaml
+
+project:
+  name: uncertainty_8_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/uncertainty_8_test
+
+reference:
+  # Matched sequence-length comparison for the corrected uncertainty-aware
+  # branch: preserve the spectra, references, temporal Transformer and relative
+  # flux calculation, changing only six temporal inputs to eight.
+  sequence_visits: 8

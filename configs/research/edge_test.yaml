@@ -1,0 +1,22 @@
+extends: brightness_test.yaml
+
+project:
+  name: edge_test
+  output_dir: ${STRIDER_OUTPUT_DIR}/edge_test
+
+model:
+  # Retain reliable edge measurements rather than rejecting a fixed wavelength
+  # fraction. The established propagated-error quality limit remains active.
+  coadd_maximum_relative_error: 3.0
+  coadd_edge_trim_fraction: 0.0
+
+reference:
+  bank_path: ${STRIDER_DATA_DIR}/reference/roman_edges.npz
+  maximum_relative_coadd_error: 3.0
+  edge_trim_fraction: 0.0
+  # Downweight the first and last 5% smoothly during spectral comparison.
+  # The same taper is used when building the clean references and at runtime.
+  edge_taper_fraction: 0.05
+
+training:
+  epochs: 4

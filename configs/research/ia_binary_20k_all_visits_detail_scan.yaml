@@ -1,0 +1,11 @@
+extends: ia_binary_20k_all_visits_scan_control.yaml
+
+project:
+  name: ia_binary_20k_all_visits_detail_scan
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_all_visits_detail_scan
+
+model:
+  # The named-feature and context routes still see the standardized full
+  # spectrum. Only the dense candidate-redshift matcher uses one
+  # continuum-subtracted pass instead of a learned whole/detail blend.
+  dense_scan_view: detail

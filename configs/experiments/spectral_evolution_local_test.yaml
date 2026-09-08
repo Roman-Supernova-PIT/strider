@@ -1,0 +1,18 @@
+extends: cadence_controlled_local_test.yaml
+
+project:
+  name: sundial_local_spectral_evolution_development_test
+  output_dir: runs/sundial_local_spectral_evolution_development_test
+
+data:
+  training_visit_counts: [1, 2, 4, 8, 12]
+
+model:
+  # This development arm replaces direct phase addition with a separate term
+  # that requires changes between measured spectral representations.
+  temporal_mode: spectral_evolution
+  temporal_initial_scale: 0.0
+
+training:
+  no_source_redshift_loss_weight: 1.0
+  no_source_class_loss_weight: 0.5

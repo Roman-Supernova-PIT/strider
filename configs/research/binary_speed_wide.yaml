@@ -1,0 +1,10 @@
+extends: binary_speed.yaml
+
+project:
+  name: binary_speed_wide
+  output_dir: ${STRIDER_OUTPUT_DIR}/binary_speed_wide
+
+reference:
+  # The calculation is unchanged; a wider chunk gives the GPU more candidate
+  # redshifts per operation and the benchmark verifies its memory cost.
+  redshift_chunk_size: 24

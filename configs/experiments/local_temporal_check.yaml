@@ -1,0 +1,11 @@
+extends: local_spectral_time_check.yaml
+
+project:
+  name: local_temporal_check
+  output_dir: runs/local_temporal_from_spectral
+
+training:
+  initial_checkpoint: runs/local_spectral_check/best_model.pt
+  temporal_only: true
+  epochs: 6
+  warmup_epochs: 1

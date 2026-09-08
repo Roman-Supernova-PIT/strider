@@ -1,0 +1,28 @@
+extends: cadence_controlled_all_visit_counts.yaml
+
+project:
+  name: sundial_local_onir_named_clean
+  output_dir: runs/sundial_local_onir_named_clean
+
+onir:
+  catalog_path: configs/onir_features.yaml
+  bank_path: data/local/onir/onir_named_phase_neutral.npz
+  bank_view: clean
+  anchor_mode: named
+  profile_initialization: clean_mean
+  input_mode: individual_visits
+  maximum_radius_bins: 7
+  allow_radius_clipping: true
+  minimum_valid_fraction: 0.8
+  minimum_support: 20
+  prototype_count: 3
+  # Offline profile construction may use training truth. The model never
+  # receives these phases or the redshift used to calculate them.
+  profile_rest_phase_min_days: -20.0
+  profile_rest_phase_max_days: 80.0
+  evidence_scale: 10.0
+  drift_loss_weight: 0.1
+
+model:
+  architecture: onir
+  use_phase: false

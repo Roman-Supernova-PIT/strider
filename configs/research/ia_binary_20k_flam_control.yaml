@@ -1,0 +1,22 @@
+extends: ia_binary_20k.yaml
+
+project:
+  name: ia_binary_20k_flam_control
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_flam_control
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/ia_binary_20k_flam.npz
+
+training:
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_20k/best_model.pt
+  epochs: 6
+  learning_rate: 0.0002
+  warmup_epochs: 1
+  early_stopping_patience: 6
+  observed_flux_fraction: 0.0
+  validation_view_weights:
+    generated: 2.0
+    original: 1.0
+    residual: 1.0
+    reported_error_with_source: 1.0
+    reported_error_no_source: 1.0

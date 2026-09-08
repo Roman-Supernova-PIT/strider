@@ -1,0 +1,32 @@
+extends: ia_binary_full.yaml
+
+project:
+  name: ia_binary_full_from_scratch
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_from_scratch
+
+model:
+  dense_rest_frame_scan: true
+  dense_scan_initial_scale: 0.0
+  dense_scan_evidence_scale: 10.0
+  dense_scan_chunk_size: 16
+  dense_scan_token_dim: 16
+  dense_scan_patch_size: 8
+  dense_scan_rest_bins: 256
+  dense_scan_minimum_overlap: 0.25
+  dense_scan_overlap_exponent: 1.0
+  dense_continuum_detail: true
+  dense_initial_detail_weight: 0.5
+  dense_continuum_sigma_km_s: 12000.0
+  # The explicit relative-flux arm did not improve model selection in the
+  # controlled 20k comparison, so it is not part of the frozen candidate.
+  relative_brightness_evolution: false
+
+training:
+  # A null initial checkpoint guarantees fresh model initialization. Resume
+  # jobs still restore this run's full optimizer and scheduler state.
+  initial_checkpoint: null
+  epochs: 50
+  learning_rate: 0.001
+  learning_rate_schedule: cosine
+  warmup_epochs: 5
+  early_stopping_patience: 10

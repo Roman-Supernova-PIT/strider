@@ -1,0 +1,8 @@
+extends: spectral_20k.yaml
+
+project:
+  name: time_check_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/time_check_20k
+
+training:
+  timing_baseline_epochs: 12

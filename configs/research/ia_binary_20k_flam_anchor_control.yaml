@@ -1,0 +1,12 @@
+extends: ia_binary_20k_flam_anchor.yaml
+
+project:
+  name: ia_binary_20k_flam_anchor_control
+  seed: 73031
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_flam_anchor_control
+
+training:
+  # Matched control for the FLAM-anchored pilot. It retains the same model,
+  # seed, augmentations and FLAM-weighted checkpoint selection, but uses no
+  # stored FLAM during gradient updates.
+  observed_flux_fraction: 0.0

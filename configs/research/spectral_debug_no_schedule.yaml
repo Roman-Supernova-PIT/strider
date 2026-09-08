@@ -1,0 +1,9 @@
+extends: spectral_debug_noise.yaml
+
+project:
+  name: spectral_debug_no_schedule
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_debug_no_schedule
+
+model:
+  # Information strength should follow the measured spectrum, not its schedule.
+  evidence_use_visit_count_and_span: false

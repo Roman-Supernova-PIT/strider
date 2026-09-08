@@ -1,0 +1,20 @@
+extends: spectrotemporal_noise_20k.yaml
+
+project:
+  name: ia_binary_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k
+
+data:
+  class_scheme: normal_ia_binary
+  prepared_dir: ${STRIDER_DATA_DIR}/ia_binary_20k
+  minimum_class_counts:
+    train: 5
+    selection: 1
+    calibration: 1
+    test: 1
+
+model:
+  classes: [Ia, other]
+
+onir:
+  bank_path: ${STRIDER_DATA_DIR}/onir/ia_binary_20k.npz

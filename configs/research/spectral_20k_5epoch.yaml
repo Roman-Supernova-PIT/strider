@@ -1,0 +1,11 @@
+extends: spectral_20k.yaml
+
+project:
+  name: spectral_20k_5epoch
+  output_dir: ${STRIDER_OUTPUT_DIR}/spectral_20k_5epoch
+
+training:
+  epochs: 5
+  warmup_epochs: 1
+  early_stopping_patience: 5
+  benchmark_batches: 20

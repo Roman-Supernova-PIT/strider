@@ -1,0 +1,8 @@
+extends: ia_binary_full_reference.yaml
+
+project:
+  name: ia_binary_full_cadence
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_full_cadence
+
+training:
+  timing_baseline_epochs: 20

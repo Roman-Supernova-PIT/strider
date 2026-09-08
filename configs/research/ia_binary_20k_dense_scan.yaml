@@ -1,0 +1,31 @@
+extends: ia_binary_full.yaml
+
+project:
+  name: ia_binary_20k_dense_scan
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_dense_scan
+
+data:
+  runtime_object_limits:
+    train: 20000
+    selection: 5000
+    calibration: 2000
+    test: 150
+
+model:
+  dense_rest_frame_scan: true
+  dense_scan_initial_scale: 0.0
+  dense_scan_evidence_scale: 10.0
+  dense_scan_chunk_size: 16
+  dense_scan_token_dim: 16
+  dense_scan_patch_size: 8
+  dense_scan_rest_bins: 256
+  dense_scan_minimum_overlap: 0.25
+  dense_scan_overlap_exponent: 1.0
+
+training:
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full/best_model.pt
+  epochs: 8
+  learning_rate: 0.0002
+  learning_rate_schedule: constant
+  warmup_epochs: 0
+  early_stopping_patience: 4

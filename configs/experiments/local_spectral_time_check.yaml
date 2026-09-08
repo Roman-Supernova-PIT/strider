@@ -1,0 +1,9 @@
+extends: local_spectral_check.yaml
+
+project:
+  name: local_spectral_time_check
+  output_dir: runs/local_spectral_time_check
+
+model:
+  temporal_mode: spectral_evolution
+  temporal_initial_scale: 0.0

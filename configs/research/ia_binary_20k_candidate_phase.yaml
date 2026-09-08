@@ -1,0 +1,29 @@
+extends: ia_binary_full.yaml
+
+project:
+  name: ia_binary_20k_candidate_phase
+  output_dir: ${STRIDER_OUTPUT_DIR}/ia_binary_20k_candidate_phase
+
+data:
+  runtime_object_limits:
+    train: 20000
+    selection: 5000
+    calibration: 2000
+    test: 150
+
+model:
+  phase_auxiliary_bins: 15
+  phase_auxiliary_min_days: -20.0
+  phase_auxiliary_max_days: 50.0
+  candidate_phase_consistency: true
+  candidate_phase_initial_scale: 0.0
+  candidate_phase_minimum_visits: 2
+
+training:
+  initial_checkpoint: ${STRIDER_OUTPUT_DIR}/ia_binary_full/best_model.pt
+  epochs: 8
+  learning_rate: 0.0002
+  learning_rate_schedule: constant
+  warmup_epochs: 0
+  early_stopping_patience: 4
+  phase_loss_weight: 0.25

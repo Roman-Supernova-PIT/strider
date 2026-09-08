@@ -1,0 +1,24 @@
+extends: ../local_pilot.yaml
+
+project:
+  name: sundial_local_pilot_cadence_controlled
+  output_dir: runs/sundial_local_pilot_cadence_controlled
+
+data:
+  # The choice is independent of redshift. Objects with fewer available visits
+  # retain all of their visits.
+  training_visit_counts: [4, 8, 12]
+
+observation:
+  # Explicit matched pairs replace the older random no-source mixture.
+  no_source_fraction: 0.0
+
+training:
+  paired_no_source: true
+  no_source_redshift_loss_weight: 0.5
+  no_source_class_loss_weight: 0.25
+  paired_reported_error_fraction: 0.0
+  timing_baseline_epochs: 20
+
+evaluation:
+  visit_control_repeats: 3

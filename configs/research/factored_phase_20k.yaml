@@ -1,0 +1,16 @@
+extends: factored_20k.yaml
+
+project:
+  name: factored_phase_20k
+  output_dir: ${STRIDER_OUTPUT_DIR}/factored_phase_20k
+
+model:
+  phase_auxiliary_bins: 15
+  phase_auxiliary_min_days: -20.0
+  phase_auxiliary_max_days: 50.0
+
+training:
+  phase_loss_weight: 0.25
+
+evaluation:
+  ia_redshift_edges: [0.0, 0.5, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.5, 3.0]

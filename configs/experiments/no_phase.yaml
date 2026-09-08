@@ -1,0 +1,8 @@
+extends: ../local_pilot.yaml
+
+project:
+  name: sundial_local_pilot_no_phase
+  output_dir: runs/sundial_local_pilot_no_phase
+
+model:
+  use_phase: false

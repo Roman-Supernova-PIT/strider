@@ -1,0 +1,15 @@
+extends: cadence_controlled.yaml
+
+project:
+  name: sundial_local_cadence_development_test
+  output_dir: runs/sundial_local_cadence_development_test
+
+data:
+  runtime_object_limits:
+    train: 400
+    validation: 100
+    test: 500
+
+training:
+  epochs: 8
+  early_stopping_patience: 3
