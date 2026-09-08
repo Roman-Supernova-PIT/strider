@@ -60,7 +60,7 @@ class RomanReferenceBank:
         classes = len(self.class_names)
         if self.class_names != HOURGLASS_15_CLASSES:
             raise ValueError(
-                "Roman reference classes must use the canonical 15-class order"
+                "Roman reference classes must use the fixed 15-class order"
             )
         rest = np.asarray(self.rest_wavelength)
         if rest.ndim != 1 or len(rest) < 2 or np.any(np.diff(rest) <= 0.0):

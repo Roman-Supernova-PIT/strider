@@ -87,7 +87,7 @@ def class_names_for_scheme(name: str) -> tuple[str, ...]:
 
 
 def fine_class_name_for_source(gentype: int, template_index: int) -> str | None:
-    """Decode one simulation source into the canonical physical class list."""
+    """Decode one simulation source into the fixed physical class list."""
     gentype = int(gentype)
     if gentype == 30:
         return _TEMPLATE_TO_CLASS.get(int(template_index))
@@ -95,7 +95,7 @@ def fine_class_name_for_source(gentype: int, template_index: int) -> str | None:
 
 
 def output_class_name_for_fine_class(fine_class: str, scheme: str) -> str:
-    """Map a canonical physical class into one supported reporting scheme."""
+    """Map a fixed physical class into one supported reporting scheme."""
     if fine_class not in HOURGLASS_15_CLASSES:
         raise ValueError(f"Unsupported physical class: {fine_class}")
     if scheme == "hourglass_15":

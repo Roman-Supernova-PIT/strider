@@ -30,8 +30,13 @@ dependencies = [
   "pyarrow>=18",
   "PyYAML>=6",
   "scikit-learn>=1.5",
+  "scipy>=1.6",
   "torch>=2.5",
 ]
+
+[project.urls]
+Repository = "https://github.com/Roman-Supernova-PIT/strider"
+Issues = "https://github.com/Roman-Supernova-PIT/strider/issues"
 
 [project.optional-dependencies]
 dev = [

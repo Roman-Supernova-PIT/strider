@@ -1,4 +1,4 @@
-extends: ../nersc/spectral.yaml
+extends: ../research/spectral.yaml
 
 project:
   name: local_spectral_check

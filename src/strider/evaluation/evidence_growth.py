@@ -290,5 +290,5 @@ def _print_report(report: dict[str, Any], path: Path) -> None:
         )
     best = report["assessment"]["best_safe_exponent_by_coverage"]
     label = "none" if best is None else f"{best:g}"
-    print(f"  best safe sensitivity value: {label}", flush=True)
+    print(f"  best sensitivity value meeting the checks: {label}", flush=True)
     print(f"  results {path}", flush=True)

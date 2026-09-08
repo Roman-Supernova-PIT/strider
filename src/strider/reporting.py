@@ -69,8 +69,8 @@ def training_start(
         full_percent = 100.0 * full_history_fraction
         print(
             "  visits all available | training: "
-            f"{full_percent:.0f}% complete histories, "
-            f"{100.0 - full_percent:.0f}% shorter histories",
+            f"{full_percent:.0f}% complete sequences, "
+            f"{100.0 - full_percent:.0f}% shorter sequences",
             flush=True,
         )
     if start_epoch:
@@ -84,7 +84,7 @@ def training_start(
             flush=True,
         )
     print(
-        "  route values: s named features | t temporal change | "
+        "  component weights: s spectral comparison | t temporal change | "
         "c spectral context | d complete-spectrum scan | "
         "detail continuum-subtracted share",
         flush=True,

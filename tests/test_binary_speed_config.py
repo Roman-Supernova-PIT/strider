@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_binary_speed_benchmark_keeps_complete_histories_in_larger_batches() -> None:
-    config = load_config(ROOT / "configs/nersc/binary_speed.yaml")
+    config = load_config(ROOT / "configs/research/binary_speed.yaml")
 
     assert config["data"]["prepared_dir"].endswith("/ia_binary_full")
     assert config["data"]["max_objects"] == {
@@ -30,8 +30,8 @@ def test_binary_speed_benchmark_keeps_complete_histories_in_larger_batches() -> 
 
 
 def test_wide_speed_benchmark_changes_only_chunking_and_output() -> None:
-    standard = load_config(ROOT / "configs/nersc/binary_speed.yaml")
-    wide = load_config(ROOT / "configs/nersc/binary_speed_wide.yaml")
+    standard = load_config(ROOT / "configs/research/binary_speed.yaml")
+    wide = load_config(ROOT / "configs/research/binary_speed_wide.yaml")
 
     assert standard["reference"]["redshift_chunk_size"] == 12
     assert wide["reference"]["redshift_chunk_size"] == 24
@@ -43,9 +43,9 @@ def test_wide_speed_benchmark_changes_only_chunking_and_output() -> None:
 
 def test_binary_test_changes_only_runtime_and_batching() -> None:
     reference = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
-    test = load_config(ROOT / "configs/nersc/binary_test.yaml")
+    test = load_config(ROOT / "configs/research/binary_test.yaml")
 
     assert test["data"] == reference["data"]
     assert test["model"] == reference["model"]
@@ -59,8 +59,8 @@ def test_binary_test_changes_only_runtime_and_batching() -> None:
 
 
 def test_binary_full_run_uses_all_flat_redshift_objects() -> None:
-    benchmark = load_config(ROOT / "configs/nersc/binary_speed_wide.yaml")
-    binary = load_config(ROOT / "configs/nersc/binary.yaml")
+    benchmark = load_config(ROOT / "configs/research/binary_speed_wide.yaml")
+    binary = load_config(ROOT / "configs/research/binary.yaml")
 
     assert binary["data"] == benchmark["data"]
     assert binary["model"] == benchmark["model"]
@@ -72,8 +72,8 @@ def test_binary_full_run_uses_all_flat_redshift_objects() -> None:
 
 
 def test_classes_test_keeps_all_reference_classes_separate() -> None:
-    binary = load_config(ROOT / "configs/nersc/binary_test.yaml")
-    classes = load_config(ROOT / "configs/nersc/classes_test.yaml")
+    binary = load_config(ROOT / "configs/research/binary_test.yaml")
+    classes = load_config(ROOT / "configs/research/classes_test.yaml")
 
     assert classes["project"]["name"] == "classes_test"
     assert classes["project"]["output_dir"].endswith("/classes_test")
@@ -101,8 +101,8 @@ def test_classes_test_keeps_all_reference_classes_separate() -> None:
 
 
 def test_temporal_test_changes_only_the_sequence_combination() -> None:
-    classes = load_config(ROOT / "configs/nersc/classes_test.yaml")
-    temporal = load_config(ROOT / "configs/nersc/temporal_test.yaml")
+    classes = load_config(ROOT / "configs/research/classes_test.yaml")
+    temporal = load_config(ROOT / "configs/research/temporal_test.yaml")
 
     assert temporal["project"]["name"] == "temporal_test"
     assert temporal["project"]["output_dir"].endswith("/temporal_test")
@@ -132,8 +132,8 @@ def test_temporal_test_changes_only_the_sequence_combination() -> None:
 
 
 def test_brightness_test_adds_only_relative_flux_evolution() -> None:
-    temporal = load_config(ROOT / "configs/nersc/temporal_test.yaml")
-    brightness = load_config(ROOT / "configs/nersc/brightness_test.yaml")
+    temporal = load_config(ROOT / "configs/research/temporal_test.yaml")
+    brightness = load_config(ROOT / "configs/research/brightness_test.yaml")
 
     assert brightness["project"]["name"] == "brightness_test"
     assert brightness["project"]["output_dir"].endswith("/brightness_test")
@@ -151,8 +151,8 @@ def test_brightness_test_adds_only_relative_flux_evolution() -> None:
 
 
 def test_no_snr_control_changes_only_the_temporal_quality_input() -> None:
-    brightness = load_config(ROOT / "configs/nersc/brightness_test.yaml")
-    control = load_config(ROOT / "configs/nersc/brightness_no_snr_test.yaml")
+    brightness = load_config(ROOT / "configs/research/brightness_test.yaml")
+    control = load_config(ROOT / "configs/research/brightness_no_snr_test.yaml")
 
     assert control["project"]["name"] == "brightness_no_snr_test"
     assert control["project"]["output_dir"].endswith(
@@ -174,8 +174,8 @@ def test_no_snr_control_changes_only_the_temporal_quality_input() -> None:
 
 
 def test_full_brightness_runs_use_all_flat_redshift_objects() -> None:
-    binary = load_config(ROOT / "configs/nersc/binary_brightness.yaml")
-    classes = load_config(ROOT / "configs/nersc/classes_brightness.yaml")
+    binary = load_config(ROOT / "configs/research/binary_brightness.yaml")
+    classes = load_config(ROOT / "configs/research/classes_brightness.yaml")
 
     for config in (binary, classes):
         assert config["data"]["prepared_dir"].endswith("/ia_binary_full")

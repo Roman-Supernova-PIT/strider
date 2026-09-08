@@ -85,9 +85,9 @@ def test_roman_reference_bank_round_trip(tmp_path: Path) -> None:
 
 
 def test_roman_reference_pilot_configs_are_matched() -> None:
-    direct = load_config(ROOT / "configs/nersc/ia_binary_20k_roman_reference.yaml")
+    direct = load_config(ROOT / "configs/research/ia_binary_20k_roman_reference.yaml")
     learned = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_learned.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_learned.yaml"
     )
 
     assert direct["reference"]["bank_path"] == learned["reference"]["bank_path"]
@@ -103,9 +103,9 @@ def test_roman_reference_pilot_configs_are_matched() -> None:
 
 
 def test_attention_reference_config_is_a_matched_third_candidate() -> None:
-    direct = load_config(ROOT / "configs/nersc/ia_binary_20k_roman_reference.yaml")
+    direct = load_config(ROOT / "configs/research/ia_binary_20k_roman_reference.yaml")
     attention = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
 
     assert direct["data"] == attention["data"]
@@ -120,8 +120,8 @@ def test_attention_reference_config_is_a_matched_third_candidate() -> None:
 
 
 def test_temporal_transformer_is_matched_to_classes_test() -> None:
-    classes = load_config(ROOT / "configs/nersc/classes_test.yaml")
-    temporal = load_config(ROOT / "configs/nersc/temporal_test.yaml")
+    classes = load_config(ROOT / "configs/research/classes_test.yaml")
+    temporal = load_config(ROOT / "configs/research/temporal_test.yaml")
 
     assert temporal["data"] == classes["data"]
     assert temporal["model"] == classes["model"]
@@ -135,9 +135,9 @@ def test_temporal_transformer_is_matched_to_classes_test() -> None:
 
 
 def test_edge_test_changes_only_measurement_edges_and_epoch_count() -> None:
-    brightness = load_config(ROOT / "configs/nersc/brightness_test.yaml")
-    edge = load_config(ROOT / "configs/nersc/edge_test.yaml")
-    builder = load_config(ROOT / "configs/nersc/edge_reference.yaml")
+    brightness = load_config(ROOT / "configs/research/brightness_test.yaml")
+    edge = load_config(ROOT / "configs/research/edge_test.yaml")
+    builder = load_config(ROOT / "configs/research/edge_reference.yaml")
 
     assert edge["data"] == brightness["data"]
     assert edge["observation"] == brightness["observation"]
@@ -161,9 +161,9 @@ def test_edge_test_changes_only_measurement_edges_and_epoch_count() -> None:
 
 
 def test_uncertainty_test_replaces_broad_quality_cut_with_numerical_floor() -> None:
-    edge = load_config(ROOT / "configs/nersc/edge_test.yaml")
-    uncertainty = load_config(ROOT / "configs/nersc/uncertainty_test.yaml")
-    builder = load_config(ROOT / "configs/nersc/uncertainty_reference.yaml")
+    edge = load_config(ROOT / "configs/research/edge_test.yaml")
+    uncertainty = load_config(ROOT / "configs/research/uncertainty_test.yaml")
+    builder = load_config(ROOT / "configs/research/uncertainty_reference.yaml")
 
     assert uncertainty["data"] == edge["data"]
     assert uncertainty["observation"] == edge["observation"]
@@ -193,8 +193,8 @@ def test_uncertainty_test_replaces_broad_quality_cut_with_numerical_floor() -> N
 
 
 def test_v4_test_combines_only_the_selected_changes() -> None:
-    uncertainty = load_config(ROOT / "configs/nersc/uncertainty_8_test.yaml")
-    candidate = load_config(ROOT / "configs/nersc/v4_test.yaml")
+    uncertainty = load_config(ROOT / "configs/research/uncertainty_8_test.yaml")
+    candidate = load_config(ROOT / "configs/research/v4_test.yaml")
 
     assert candidate["data"] == uncertainty["data"]
     assert candidate["observation"] == uncertainty["observation"]
@@ -224,15 +224,15 @@ def test_v4_test_combines_only_the_selected_changes() -> None:
 
 
 def test_reference_candidate_alias_preserves_the_active_checkpoint_digest() -> None:
-    historical = load_config(ROOT / "configs/nersc/v4_test.yaml")
-    public_name = load_config(ROOT / "configs/nersc/reference_candidate_gate.yaml")
+    historical = load_config(ROOT / "configs/research/v4_test.yaml")
+    public_name = load_config(ROOT / "configs/research/reference_candidate_gate.yaml")
 
     assert resolved_config(public_name) == resolved_config(historical)
 
 
 def test_full_reference_builder_uses_complete_training_role() -> None:
-    builder = load_config(ROOT / "configs/nersc/roman_reference_bank_full.yaml")
-    direct = load_config(ROOT / "configs/nersc/ia_binary_20k_roman_reference.yaml")
+    builder = load_config(ROOT / "configs/research/roman_reference_bank_full.yaml")
+    direct = load_config(ROOT / "configs/research/ia_binary_20k_roman_reference.yaml")
 
     assert builder["data"]["prepared_dir"].endswith("/ia_binary_full")
     assert builder["reference"]["bank_path"] == direct["reference"]["bank_path"]
@@ -240,9 +240,9 @@ def test_full_reference_builder_uses_complete_training_role() -> None:
 
 
 def test_all_source_reference_builder_has_a_separate_output() -> None:
-    capped = load_config(ROOT / "configs/nersc/roman_reference_bank_full.yaml")
+    capped = load_config(ROOT / "configs/research/roman_reference_bank_full.yaml")
     all_source = load_config(
-        ROOT / "configs/nersc/roman_reference_bank_all_source.yaml"
+        ROOT / "configs/research/roman_reference_bank_all_source.yaml"
     )
 
     assert all_source["data"]["prepared_dir"].endswith("/ia_binary_full")
@@ -821,7 +821,7 @@ def test_attention_reference_runs_without_reported_errors_or_visit_scales(
     tmp_path: Path,
 ) -> None:
     config = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)
@@ -854,7 +854,7 @@ def test_attention_reference_retains_bins_with_soft_uncertainty_weighting(
     tmp_path: Path,
 ) -> None:
     config = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)
@@ -893,7 +893,7 @@ def test_attention_reference_retains_bins_with_soft_uncertainty_weighting(
 def test_soft_uncertainty_weighting_stabilizes_relative_flux_evolution(
     tmp_path: Path,
 ) -> None:
-    config = load_config(ROOT / "configs/nersc/uncertainty_test.yaml")
+    config = load_config(ROOT / "configs/research/uncertainty_test.yaml")
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)
     )
@@ -926,7 +926,7 @@ def test_soft_uncertainty_weighting_stabilizes_relative_flux_evolution(
 def test_soft_uncertainty_weighting_prevents_encoder_contamination(
     tmp_path: Path,
 ) -> None:
-    config = load_config(ROOT / "configs/nersc/uncertainty_test.yaml")
+    config = load_config(ROOT / "configs/research/uncertainty_test.yaml")
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)
     )
@@ -973,7 +973,7 @@ def test_reference_cosine_taper_is_symmetric_and_keeps_interior_support(
     tmp_path: Path,
 ) -> None:
     config = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)
@@ -1000,7 +1000,7 @@ def test_reference_cosine_taper_weights_flux_without_reshaping_it(
     tmp_path: Path,
 ) -> None:
     config = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)
@@ -1062,7 +1062,7 @@ def test_reference_cosine_taper_ignores_exact_endpoint_flux(
     tmp_path: Path,
 ) -> None:
     config = load_config(
-        ROOT / "configs/nersc/ia_binary_20k_roman_reference_attention.yaml"
+        ROOT / "configs/research/ia_binary_20k_roman_reference_attention.yaml"
     )
     config["reference"]["bank_path"] = str(
         _test_bank(tmp_path / "reference.npz", rest_bins=64)

@@ -13,6 +13,6 @@ onir:
   bank_path: data/local/onir/onir_clean_all_recorded_visits_pooled.npz
   bank_input_mode: individual_visits
   input_mode: individual_visits
-  # This experiment deliberately pools every recorded simulation phase.
+  # Use every recorded simulation phase.
   profile_rest_phase_min_days: -1000.0
   profile_rest_phase_max_days: 1000.0

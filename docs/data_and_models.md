@@ -1,64 +1,80 @@
-# Data and model provenance
+# Using STRIDER
 
-STRIDER separates data by scientific role. These roles are part of the method,
-not merely directory names.
+## Model availability
 
-| Role | Permitted use |
-|---|---|
-| Training | Fit model parameters and build the fixed simulation-derived reference bank |
-| Selection | Compare candidate architectures and choose the frozen procedure |
-| Calibration | Fit class, redshift-coverage and measured-signal calibration after selection |
-| Test | One final evaluation after the model, calibration procedure and reporting rules are frozen |
+The model is being updated and tested. A supported trained model package is not
+yet available to download. The Python interface below works with a model package
+exported by STRIDER.
 
-Selection, calibration and test objects must never contribute spectra to the
-reference bank. Runtime objects contain measured observer-frame spectra only;
-clean simulated flux, true redshift and simulated phase remain outside the
-deployed boundary.
+## Input format
 
-## Prepared data
+For one transient, the example uses an `object.npz` file with four arrays:
 
-Raw simulations are converted to versioned HDF5 and Parquet stores by the
-preparation commands. Those stores are too large and too source-specific for
-Git. A repeatable run should record:
+| Array | Shape | Contents |
+|---|---|---|
+| `wavelength` | `(wavelength,)` | Shared observer-frame wavelength grid in Angstrom |
+| `flux` | `(visits, wavelength)` | Measured spectral flux density, FLAM |
+| `flux_error` | `(visits, wavelength)` | Reported one-sigma uncertainty in the same units as flux |
+| `observer_time` | `(visits,)` | Observation dates in observer-frame days |
 
-- the source simulation name, version and access location;
-- the exact input file manifest and checksums;
-- the split assignment and preparation configuration digest; and
-- the prepared-store manifest and object counts.
+Use the same physical flux units across all visits and preserve their relative
+brightness. Dates can be expressed as MJD or another consistent day coordinate.
+The model uses time differences. True class, true redshift and simulated phase
+are not inference inputs.
 
-The repository does not redistribute the current simulation products. They
-must be obtained from their creators or an authorized project store.
+## Python inference
 
-## Reference bank
+```python
+import numpy as np
+from strider.deployment import load_model_package
 
-The active bank format is `strider-roman-spectral-reference-v3`. A bank records
-its source split, configuration digest, class and phase grid, input manifest and
-edge-weighting semantics. The v3 format is deliberately incompatible with
-earlier banks that tapered measured flux rather than matching influence.
+model = load_model_package("/path/to/model-package", device="cpu")
+with np.load("object.npz", allow_pickle=False) as spectra:
+    result = model.classify(
+        wavelength=spectra["wavelength"],
+        flux=spectra["flux"],
+        flux_error=spectra["flux_error"],
+        observer_time=spectra["observer_time"],
+    )
+print(result["classification"])
+print(result["redshift"]["z_STRIDER"])
+print(result["signal"])
+```
 
-The bank is a fitted scientific artifact even though it has no gradient-trained
-parameters. Publish it with a checksum, construction configuration and source
-data citation. Do not put a full bank in Git.
+The command-line interface currently supports training, evaluation and model
+export. Analysing an input file uses the Python interface above; file-based
+`classify` and `check-model` commands are not yet provided.
 
-## Model package
+## Results
 
-[`export_model_package`](../src/strider/model_package.py) writes a checksummed,
-architecture-aware directory containing:
+- `classification` contains class probabilities labelled `raw` or `calibrated`.
+- `redshift` contains the redshift distribution and alternative solutions.
+  `z_STRIDER` is the peak within the highest-density posterior basin. Calibrated
+  redshift sets are included when available.
+- `signal` reports signal reliability separately from class and redshift.
+  Without a fitted signal calibration, source probability and grade are null.
 
-- model weights and the resolved configuration;
-- the candidate redshift and observer-wavelength grids;
-- preprocessing metadata and environment information;
-- only the fixed assets required by that architecture;
-- calibration and frozen-test metadata when they exist; and
-- a model card and `SHA256SUMS` manifest.
+Signal reliability is not a measure of redshift accuracy. The
+[calibration guide](calibration.md) explains these quantities and their meanings.
 
-A Roman-reference package contains `reference_bank.npz`; an ONIR package
-contains its ONIR bank and catalog; a full-scan package carries neither. This
-keeps deployment self-contained without preserving unrelated experimental
-routes.
+## Model files and updates
 
-No supported STRIDER checkpoint or reference bank is released yet. Once the
-current gate is complete, accepted artifacts should be deposited in a stable
-archive with a version, DOI or persistent URL, checksums and the exact Git
-commit. Large checkpoints, reference banks, prepared data and prediction tables
-belong in that archive or project storage, not in this repository.
+A reference-based STRIDER model package contains the trained weights, resolved
+configuration, reference bank, wavelength and redshift grids, preprocessing
+metadata, model card and checksums. Calibration and evaluation records are
+included when available.
+
+Use the complete package and its stated software requirements. Keep the model
+version with your results so that later model updates can be distinguished.
+Weights, reference bank and calibration must belong to the same model release.
+
+Released model packages will be linked here with their version, checksums and
+matching source commit. Large model and data files are stored separately from
+the Git repository.
+
+## Training your own model
+
+The [training guide](training.md) explains data preparation, model fitting,
+evaluation and export. Simulation products must be obtained from their creators
+or an authorized project store. The fixed reference bank is constructed from
+training data only; selection, calibration and test objects must remain separate.

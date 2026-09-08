@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare legacy and current models on paired Sundial spectra and noise draws."""
+"""Compare model predictions for matched Sundial spectra and noise draws."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import pandas as pd
 
 
 REDSHIFT_EDGES = np.asarray([0.0, 0.75, 1.25, 1.75, 2.25, 3.0])
+MODEL_LABELS = {"v2": "Comparison model", "v3": "STRIDER"}
 MODEL_STYLE = {
     "v2": {"color": "#6a51a3", "linestyle": "--"},
     "v3": {"color": "#0587a1", "linestyle": "-"},
@@ -20,7 +21,7 @@ MODEL_STYLE = {
 def _v2_predictions(path: Path) -> pd.DataFrame:
     paths = sorted(path.glob("predictions*_of_*.csv")) if path.is_dir() else [path]
     if not paths:
-        raise FileNotFoundError(f"no v2 prediction shards found in {path}")
+        raise FileNotFoundError(f"no comparison-model prediction shards found in {path}")
     frame = pd.concat([pd.read_csv(item) for item in paths], ignore_index=True)
     frame = frame[frame["condition"].str.startswith("fresh_")].copy()
     frame = frame.rename(
@@ -35,7 +36,7 @@ def _v2_predictions(path: Path) -> pd.DataFrame:
     elif "true_class" in frame:
         frame["is_ia"] = frame["true_class"].astype(str).eq("Ia")
     else:
-        raise ValueError("v2 predictions lack is_ia or true_class")
+        raise ValueError("comparison-model predictions lack is_ia or true_class")
     frame["model"] = "v2"
     return frame
 
@@ -48,7 +49,7 @@ def _v3_predictions(path: Path, tag: str | None = None) -> pd.DataFrame:
     )
     paths = sorted(path.glob(pattern)) if path.is_dir() else [path]
     if not paths:
-        raise FileNotFoundError(f"no v3 prediction shards found in {path}")
+        raise FileNotFoundError(f"no STRIDER prediction shards found in {path}")
     frame = pd.concat([pd.read_csv(item) for item in paths], ignore_index=True)
     frame = frame[frame["input_kind"].eq("source")].copy()
     if "p_Ia" in frame and "p_ia" not in frame:
@@ -58,7 +59,7 @@ def _v3_predictions(path: Path, tag: str | None = None) -> pd.DataFrame:
     elif "true_class" in frame:
         frame["is_ia"] = frame["true_class"].eq(0)
     else:
-        raise ValueError("v3 predictions lack true_class_name or true_class")
+        raise ValueError("STRIDER predictions lack true_class_name or true_class")
     frame["model"] = "v3"
     return frame
 
@@ -90,16 +91,16 @@ def _paired(v2: pd.DataFrame, v3: pd.DataFrame) -> pd.DataFrame:
     if not np.allclose(
         merged["true_redshift_v2"], merged["true_redshift_v3"], atol=1.0e-5
     ):
-        raise ValueError("paired legacy and current rows disagree on true redshift")
+        raise ValueError("paired prediction rows disagree on true redshift")
     if not merged["is_ia_v2"].eq(merged["is_ia_v3"]).all():
-        raise ValueError("paired legacy and current rows disagree on the Ia label")
+        raise ValueError("paired prediction rows disagree on the Ia label")
     merged["true_redshift"] = merged.pop("true_redshift_v2")
     merged["is_ia"] = merged.pop("is_ia_v2")
     return merged.drop(columns=["true_redshift_v3", "is_ia_v3"])
 
 
 def _wide_predictions(predictions: pd.DataFrame, model: str) -> pd.DataFrame:
-    """Put one model's predictions into the wide comparison-table contract."""
+    """Put one model's predictions into the wide comparison table."""
     columns = [
         "snid",
         "noise_scale",
@@ -335,7 +336,7 @@ def _plot_redshift(summary: pd.DataFrame, output: Path) -> None:
                 )
         axes[row, 0].axhline(0.0, color="0.35", linewidth=0.8)
         axes[row, 3].axhline(0.9, color="0.55", linewidth=0.8, linestyle=":")
-        axes[row, 0].set_ylabel(f"STRIDER {model}")
+        axes[row, 0].set_ylabel(MODEL_LABELS[model])
         for axis in axes[row]:
             axis.axvline(100.0, color="0.5", linewidth=0.9, linestyle="--")
             axis.grid(False)
@@ -381,7 +382,7 @@ def _plot_classification(summary: pd.DataFrame, output: Path) -> None:
                     marker="o",
                     linewidth=2.0,
                     markersize=4.5,
-                    label=model,
+                    label=MODEL_LABELS[model],
                     **MODEL_STYLE[model],
                 )
             axis.axvline(100.0, color="0.5", linewidth=0.9, linestyle=":")
@@ -420,7 +421,7 @@ def _plot_reliability(summary: pd.DataFrame, output: Path) -> None:
             linewidth=2.0,
             **MODEL_STYLE[model],
         )
-        axis.set_title(model)
+        axis.set_title(MODEL_LABELS[model])
         axis.set_xlabel(r"predicted $P(\mathrm{Ia})$")
         axis.set_xlim(0, 1)
         axis.set_ylim(0, 1)
@@ -478,7 +479,7 @@ def _plot_nominal_redshift(
             label=r"$P(\mathrm{Ia})\geq0.9$",
         )
         axis.plot([0, 3], [0, 3], color="0.2", linewidth=1.0)
-        axis.set_title(model)
+        axis.set_title(MODEL_LABELS[model])
         axis.set_xlabel("true redshift")
         axis.set_xlim(0, 3)
         axis.set_ylim(0, 3)
@@ -495,12 +496,12 @@ def main() -> None:
     parser.add_argument(
         "--v2",
         type=Path,
-        help="v2 prediction file or shard directory; omit for a v3-only figure",
+        help="comparison-model prediction file or shard directory; optional",
     )
     parser.add_argument("--v3", type=Path, required=True)
     parser.add_argument(
         "--v3-tag",
-        help="base output tag used by the v3 sharded evaluator",
+        help="output tag used by the STRIDER sharded evaluator",
     )
     parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()

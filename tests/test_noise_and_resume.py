@@ -1,4 +1,4 @@
-"""Contracts for controlled native-bin noise and exact continuation."""
+"""Tests for controlled native-bin noise and resuming training."""
 
 from __future__ import annotations
 

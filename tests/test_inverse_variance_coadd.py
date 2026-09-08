@@ -1,4 +1,4 @@
-"""Numerical contracts for the measurement-faithful coadd route."""
+"""Tests for inverse-variance coaddition."""
 
 from __future__ import annotations
 

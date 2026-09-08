@@ -5,7 +5,7 @@ project:
   output_dir: ${STRIDER_OUTPUT_DIR}/edge_reference
 
 model:
-  # Preserve reliable measurements outside the previous fixed edge cut.
+  # Preserve measured wavelength support with reliability weighting.
   # Bins with propagated errors above the established quality limit remain
   # excluded so noise cannot dominate a scale-invariant match.
   coadd_maximum_relative_error: 3.0

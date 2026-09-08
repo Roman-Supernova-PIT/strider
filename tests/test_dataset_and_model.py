@@ -698,7 +698,7 @@ def test_noise_amplitude_summary_matches_reported_quantities() -> None:
     assert rows[0]["fraction_p_ia_ge_0p9"] == 0.5
 
 
-def test_paired_standard_normal_matches_frozen_v2_contract() -> None:
+def test_paired_standard_normal_matches_object_seed_sequence() -> None:
     rows = pd.DataFrame(
         {
             "mjd": [20.0, 10.0],

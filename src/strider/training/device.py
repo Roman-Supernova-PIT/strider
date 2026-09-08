@@ -13,7 +13,7 @@ def choose_device() -> torch.device:
     if os.environ.get("STRIDER_REQUIRE_CUDA") == "1":
         raise RuntimeError(
             "This job requires CUDA, but PyTorch cannot see a CUDA device. "
-            "Check the Slurm GPU request and the installed PyTorch build."
+            "Check GPU availability and the installed PyTorch build."
         )
     if torch.backends.mps.is_available():
         return torch.device("mps")

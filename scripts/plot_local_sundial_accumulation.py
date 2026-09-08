@@ -110,11 +110,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--v2-reference",
         type=Path,
-        default=Path(
-            "/Users/mdixon/Documents/Dixon_2026/strider-v2/analysis/plots/"
-            "strider_v2_11c_50ep/prefix_epoch_diagnostics_quicklook/"
-            "prefix_epoch_metrics.csv"
-        ),
+        default=None,
+        help="Optional CSV of comparison-model results by observation count.",
     )
     return parser.parse_args()
 
@@ -427,9 +424,9 @@ def plot_by_redshift(metrics: pd.DataFrame, output_dir: Path) -> Path:
 
 
 def plot_v2_reference(
-    current: pd.DataFrame, reference_path: Path, output_dir: Path
+    current: pd.DataFrame, reference_path: Path | None, output_dir: Path
 ) -> Path | None:
-    if not reference_path.is_file():
+    if reference_path is None or not reference_path.is_file():
         return None
     v2 = pd.read_csv(reference_path).sort_values("prefix_epochs")
     v3 = current[current["regime"].eq("z<2")].sort_values("prefix_spectra")
@@ -442,11 +439,11 @@ def plot_v2_reference(
     for axis, (v3_name, v2_name, title, limits) in zip(axes, panels):
         axis.plot(
             v3["prefix_spectra"], v3[v3_name], color="#007c91", marker="o",
-            lw=2.2, label="v3 · Sundial · no z prior",
+            lw=2.2, label="STRIDER · Sundial · no external redshift prior",
         )
         axis.plot(
             v2["prefix_epochs"], v2[v2_name], color="#8c6bb1", marker="s",
-            ls="--", lw=1.8, label="v2 legacy reference",
+            ls="--", lw=1.8, label="Comparison model",
         )
         axis.set_title(title, loc="left", fontweight="bold")
         axis.set_xlabel("spectra available")
@@ -455,10 +452,10 @@ def plot_v2_reference(
         all_x = np.unique(np.r_[v3["prefix_spectra"], v2["prefix_epochs"]]).astype(float)
         style_axis(axis, all_x)
     axes[0].legend(frameon=False, fontsize=8)
-    figure.suptitle("Visit-prefix context: current and legacy diagnostics", fontweight="bold")
+    figure.suptitle("Results by observation count", fontweight="bold")
     figure.text(
         0.5, -0.02,
-        "Context only—not a controlled model comparison: v2 used 120 different objects and a broad photo-z prior; v3 uses 500 Sundial objects with no redshift prior.",
+        "The comparison input uses different objects and redshift priors. These curves do not provide a matched model comparison.",
         ha="center", fontsize=8.2, color="0.35",
     )
     figure.tight_layout(rect=(0, 0.04, 1, 0.95))
@@ -858,7 +855,7 @@ def main() -> None:
         "notes": [
             "Every prefix uses the same object cohort and chronological first-k spectra.",
             "Objects with fewer than k spectra retain all spectra available to them.",
-            "The v2 overlay is contextual only because it used different objects and a broad redshift prior.",
+            "The optional comparison input uses different objects and a broad redshift prior; it is not a matched model comparison.",
             "Simulation truth is used only to score and annotate the held-out examples.",
         ],
     }

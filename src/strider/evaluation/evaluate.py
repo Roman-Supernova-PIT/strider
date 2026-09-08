@@ -276,7 +276,7 @@ def _evaluation_summary_name(
     split_overridden: bool,
     selected_views: list[str] | None,
 ) -> str:
-    """Keep focused evaluations from replacing the canonical full summary."""
+    """Keep focused evaluations from replacing the full evaluation summary."""
     split_prefix = f"{evaluation_split}_" if split_overridden else ""
     if selected_views is None:
         return f"{split_prefix}evaluation_summary.json"
@@ -787,7 +787,7 @@ def _candidate_route_logits(
 ) -> dict[str, torch.Tensor]:
     """Return independent evidence components used for candidate diagnostics.
 
-    The combined dense route is deliberately omitted when its whole-spectrum
+    The combined dense route is omitted when its whole-spectrum
     and continuum-subtracted components are available, so the same evidence is
     not counted three times.  Candidate phase consistency is separated from
     the base temporal route for the same reason.

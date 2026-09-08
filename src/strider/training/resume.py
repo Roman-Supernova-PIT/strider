@@ -2,7 +2,7 @@
 
 The state contains model and optimizer values plus Python, NumPy and Torch
 random-generator states. Resumption restarts after the last completed epoch;
-an interrupted partial epoch is deliberately repeated from its beginning.
+an interrupted partial epoch is repeated from its beginning.
 """
 
 from __future__ import annotations

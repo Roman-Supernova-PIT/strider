@@ -1,8 +1,7 @@
 """Full-spectrum reference profiles for the STRIDER atlas feasibility study.
 
-This module is deliberately separate from the production model.  It provides
-small, deterministic building blocks for testing whether clean training
-spectra can define a useful full-spectrum class--redshift reference atlas.  A
+This module provides reference-building and matching functions for comparing
+full spectra across class and redshift.  A
 new observation is always scanned over candidate redshifts; truth redshift is
 used only while placing training spectra on the atlas rest-frame grid.
 """
@@ -287,7 +286,7 @@ def measurement_faithful_coadd(
     maximum_relative_error: float = 3.0,
     edge_trim_fraction: float = 0.05,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return the production-definition IV coadd for one object.
+    """Return the model's inverse-variance coadd for one object.
 
     Inputs have shapes ``(visits, wavelength)`` and ``(visits,)``.  The returned
     arrays are coadded flux, propagated error, and the final measurement mask.

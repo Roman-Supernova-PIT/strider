@@ -222,11 +222,11 @@ def _gate(
     if not complete:
         decision = "incomplete: run full test evaluation and route checks"
     elif passed and runtime is None:
-        decision = "science gate passed; runtime comparison pending"
+        decision = "selection criteria met; execution-time comparison pending"
     elif passed and runtime["fraction_saved"] > 0.0:
         decision = "promote detail-only to a second-seed confirmation"
     elif passed:
-        decision = "science gate passed, but detail-only did not reduce runtime"
+        decision = "selection criteria met; the detail-only model did not run faster"
     else:
         decision = "keep the learned blend"
     return {

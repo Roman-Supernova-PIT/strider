@@ -330,7 +330,7 @@ def _unavailable(axis: plt.Axes) -> None:
     axis.text(
         0.5,
         0.5,
-        "available in newer training histories",
+        "not recorded in this run",
         ha="center",
         va="center",
         transform=axis.transAxes,

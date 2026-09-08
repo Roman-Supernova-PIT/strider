@@ -237,7 +237,7 @@ def _peak_gpu_memory_gib(device: torch.device) -> float | None:
 
 def _process_rss_gib() -> float:
     value = float(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
-    # macOS reports bytes; Linux, including Perlmutter, reports KiB.
+    # macOS reports bytes; Linux reports KiB.
     bytes_used = value if platform.system() == "Darwin" else value * 1024.0
     return bytes_used / 1024**3
 

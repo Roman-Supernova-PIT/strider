@@ -1,4 +1,4 @@
-"""Validated storage contract for phase-neutral ONIR profiles."""
+"""Storage and validation for phase-neutral ONIR profiles."""
 
 from __future__ import annotations
 

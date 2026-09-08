@@ -1,4 +1,4 @@
-"""Readable output contracts for the STRIDER evidence figure."""
+"""Tests for STRIDER evidence figures."""
 
 from __future__ import annotations
 

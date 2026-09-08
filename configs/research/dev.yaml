@@ -1,5 +1,5 @@
-# This is the fast end-to-end cluster check. The larger storage measurement is
-# separate so it cannot delay basic preparation, model and GPU verification.
+# Small sample for data preparation, model and GPU checks.
+# Larger storage tests use a separate configuration.
 extends: dev_small.yaml
 
 project:

@@ -2,6 +2,7 @@ cff-version: 1.2.0
 message: "If you use the STRIDER research tool, please cite this repository. Publication details will be added when available."
 title: "STRIDER"
 type: software
+repository-code: "https://github.com/Roman-Supernova-PIT/strider"
 abstract: "A research tool for joint transient classification and redshift inference from Roman-like prism time series."
 authors:
   - family-names: Dixon

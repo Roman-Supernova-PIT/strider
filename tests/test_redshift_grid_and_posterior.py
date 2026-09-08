@@ -1,4 +1,4 @@
-"""Scientific contracts for the candidate-redshift probability measure."""
+"""Tests for candidate-redshift probabilities."""
 
 from __future__ import annotations
 

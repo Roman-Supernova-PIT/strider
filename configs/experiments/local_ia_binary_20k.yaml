@@ -1,4 +1,4 @@
-extends: ../nersc/ia_binary_20k.yaml
+extends: ../research/ia_binary_20k.yaml
 
 project:
   name: local_ia_binary_20k

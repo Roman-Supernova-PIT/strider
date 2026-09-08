@@ -8,7 +8,7 @@ reference:
   redshift_chunk_size: 24
 
 training:
-  # NERSC's longest-history forward/backward benchmark passed at batch 16
+  # The cluster's longest-history forward/backward benchmark passed at batch 16
   # while retaining every observation and all 500 redshift candidates.
   batch_size: 16
   benchmark_batch_sizes: [8, 16]

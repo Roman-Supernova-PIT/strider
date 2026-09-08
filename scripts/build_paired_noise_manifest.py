@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write an exact Sundial cohort shared by legacy and current noise tests."""
+"""Write a fixed Sundial object list for paired noise comparisons."""
 
 from __future__ import annotations
 

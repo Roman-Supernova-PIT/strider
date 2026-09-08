@@ -48,9 +48,8 @@ MACRO_REDSHIFT_MINIMUM_CLASS_COUNT = 100
 def _job_epoch_limit() -> int | None:
     """Return an optional epoch-boundary limit for this scheduler job.
 
-    This is deliberately an environment setting rather than part of the model
-    configuration: changing how a long run is split across Slurm allocations
-    must not invalidate an otherwise compatible continuation checkpoint.
+    The scheduler limit is an environment setting, so splitting a run across
+    jobs does not change its model configuration or checkpoint compatibility.
     """
     raw = os.environ.get("STRIDER_MAX_EPOCHS_THIS_JOB")
     if raw is None or not raw.strip():

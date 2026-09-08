@@ -135,7 +135,7 @@ def test_positive_control_noise_generator_moments():
 
 
 def test_generated_noise_is_independent_across_visits():
-    """v2 failure mode: repeated visits must not share one wavelength shape."""
+    """Repeated visits must not share one wavelength shape."""
     wavelength = np.linspace(7500.0, 20000.0, 300)
     clean = np.zeros_like(wavelength)
     settings = {
@@ -158,7 +158,7 @@ def test_generated_noise_is_independent_across_visits():
     )
     correlation = np.corrcoef(visits)
     off_diagonal = np.abs(correlation[np.triu_indices(len(visits), 1)])
-    assert off_diagonal.max() < 0.35, "visits share a wavelength pattern (v2 regression)"
+    assert off_diagonal.max() < 0.35, "visits share a wavelength pattern"
 
 
 def test_measurement_inputs_is_a_whitelist():

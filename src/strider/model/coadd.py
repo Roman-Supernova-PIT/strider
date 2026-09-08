@@ -272,9 +272,8 @@ def cumulative_inverse_variance_coadd(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Return the independently defined coadd after every visit prefix.
 
-    Prefix ``j`` uses visits ``0..j`` only.  This deliberately separate helper
-    is intended for accumulation diagnostics and animations; the production
-    dense route calls :func:`final_inverse_variance_coadd` once on all retained
+    Prefix ``j`` uses visits ``0..j`` only.  This helper is used
+    for accumulation diagnostics and animations. The model calls :func:`final_inverse_variance_coadd` once on all retained
     visits and cannot silently substitute a future visit into an early prefix.
     """
     _validate_inputs(

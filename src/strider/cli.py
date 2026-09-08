@@ -14,9 +14,16 @@ from .data.snana import discover_source_pairs, inspect_pairs
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="STRIDER data preparation, training and evaluation."
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    temporal_example = subparsers.add_parser("temporal-example")
+    temporal_example = subparsers.add_parser(
+        "example",
+        aliases=["time-series-example", "temporal-example"],
+        help="Run a small example using artificial time series.",
+        description="Run a small example using artificial time series.",
+    )
     temporal_example.add_argument("--output", required=True, type=Path)
     temporal_example.add_argument("--epochs", type=int, default=40)
     temporal_example.add_argument("--training-objects", type=int, default=900)
@@ -34,7 +41,7 @@ def main() -> None:
     temporal_example.add_argument(
         "--binary",
         action="store_true",
-        help="use normal Ia against fourteen contaminant families",
+        help="compare normal Ia with other transient classes",
     )
     commands = (
         "inspect",
@@ -65,8 +72,39 @@ def main() -> None:
         "build-reference",
         "export-model",
     )
+    command_descriptions = {
+        'inspect': 'Inspect the source simulation files.',
+        'class-support': 'Count objects in each class and data split.',
+        'wavelength-support': 'Summarize measured wavelength coverage.',
+        'prepare': 'Prepare the configured simulation data.',
+        'prepare-external-test': 'Prepare a separate evaluation dataset.',
+        'benchmark': 'Measure data-loading and model execution speed.',
+        'train': 'Train the configured model.',
+        'evaluate': 'Evaluate a saved model on a prepared data split.',
+        'observed-snr': 'Measure signal-to-noise for individual and accumulated spectra.',
+        'fit-calibration': 'Fit calibration using the reserved calibration data.',
+        'noise-check': 'Evaluate changes in measurement noise.',
+        'measurement-controls': 'Test sensitivity to changes in measured inputs.',
+        'route-check': 'Compare the model evidence components.',
+        'time-controls': 'Test changes to observation times.',
+        'plot-training': 'Plot the recorded training results.',
+        'plot-examples': 'Plot example predictions.',
+        'evidence-maps': 'Plot class-redshift evidence for selected objects.',
+        'evidence-gifs': 'Animate results as observations accumulate.',
+        'evidence-growth': 'Test how accumulated evidence is scaled.',
+        'visit-controls': 'Test shorter observation sequences.',
+        'paired-controls': 'Compare matched measurement controls.',
+        'timing-baseline': 'Evaluate a model using observation timing alone.',
+        'metadata-baseline': 'Evaluate a model using observation metadata alone.',
+        'posterior-audit': 'Summarize competing redshift solutions.',
+        'build-onir': 'Build a spectral-feature reference bank.',
+        'build-reference': 'Build the Roman spectral reference bank from training data.',
+        'export-model': 'Export model weights, reference data and calibration.',
+    }
     for name in commands:
-        command = subparsers.add_parser(name)
+        command = subparsers.add_parser(
+            name, help=command_descriptions[name], description=command_descriptions[name]
+        )
         command.add_argument("--config", required=True, type=Path)
         if name == "train":
             command.add_argument(
@@ -79,8 +117,7 @@ def main() -> None:
                 "--replace",
                 action="store_true",
                 help=(
-                    "atomically replace an earlier package, preserving it in a "
-                    "uniquely named backup directory"
+                    "replace an existing package and keep a backup"
                 ),
             )
         if name == "evaluate":
@@ -101,7 +138,7 @@ def main() -> None:
                     "reported_error_with_source",
                     "reported_error_no_source",
                 ),
-                help="evaluate only these views; defaults to the full configured audit",
+                help="evaluate these views; defaults to the views in the configuration",
             )
             command.add_argument(
                 "--external-prepared-dir",
@@ -127,12 +164,12 @@ def main() -> None:
             command.add_argument(
                 "--source-predictions",
                 type=Path,
-                help="reserved calibration-split source-view parquet",
+                help="Parquet predictions for source observations in the calibration split",
             )
             command.add_argument(
                 "--blank-predictions",
                 type=Path,
-                help="matched calibration-split no_source parquet",
+                help="Parquet predictions for matched noise-only calibration observations",
             )
             command.add_argument(
                 "--output",
@@ -224,12 +261,12 @@ def main() -> None:
             command.add_argument(
                 "--paired-noise-seed",
                 type=int,
-                help="repeat frozen-v2 object-level native-bin Gaussian draws",
+                help="repeat the same object-seeded Gaussian noise draws on native wavelength bins",
             )
             command.add_argument(
                 "--save-predictions",
                 action="store_true",
-                help="write per-object source and blank predictions for every draw",
+                help="write per-object source and noise-only predictions for every draw",
             )
             command.add_argument(
                 "--ia-only",
@@ -279,7 +316,7 @@ def main() -> None:
             command.add_argument(
                 "--layout",
                 choices=("summary", "diagnostic"),
-                help="concise evidence summary or the full route/ONIR diagnostic",
+                help="summary or detailed figure showing the evidence components",
             )
             command.add_argument(
                 "--split",
@@ -310,7 +347,7 @@ def main() -> None:
             command.add_argument(
                 "--layout",
                 choices=("summary", "diagnostic"),
-                help="concise accumulation story or full diagnostic animation",
+                help="summary or detailed animation as observations accumulate",
             )
             command.add_argument(
                 "--split",
@@ -366,7 +403,7 @@ def main() -> None:
                 help="destination directory, useful for downloaded prediction files",
             )
     arguments = parser.parse_args()
-    if arguments.command == "temporal-example":
+    if arguments.command in {"example", "time-series-example", "temporal-example"}:
         from .evaluation.temporal_example import run_temporal_example
 
         print(

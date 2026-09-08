@@ -1,7 +1,7 @@
 # One object through STRIDER
 
-A STRIDER object is an observation sequence: one or more observer-frame prism
-spectra with measured flux, reported uncertainty and observation date.
+Each transient is represented by one or more observer-frame prism spectra,
+with measured flux, reported uncertainty and an observation date for each visit.
 
 ## Before inference
 
@@ -14,15 +14,14 @@ Training truth is not copied into an inference object. In particular, the model
 does not receive the object's true class, true redshift, simulated clean flux or
 truth-derived phase.
 
-## Runtime path
+## Processing the spectra
 
 1. [`deployment.py`](../src/strider/deployment.py) or
    [`data/dataset.py`](../src/strider/data/dataset.py) validates the measured
    spectra, sorts them chronologically and resamples each visit once onto the
    observer-frame grid.
-2. Every visit is divided by one robust uncertainty scale for numerical
-   conditioning. Its wavelength-dependent uncertainty is retained for
-   deterministic measurement weighting.
+2. Each spectrum is scaled by an uncertainty estimate for numerical stability.
+   The uncertainty at each wavelength is retained for weighting measurements.
 3. [`model/coadd.py`](../src/strider/model/coadd.py) reverses the visit scaling
    and forms one inverse-variance accumulated spectrum with propagated error.
 4. [`model/roman_reference.py`](../src/strider/model/roman_reference.py) keeps
@@ -32,21 +31,23 @@ truth-derived phase.
    candidate redshift. Fine simulation classes are mapped explicitly to the
    configured reporting classes.
 6. At most eight temporal spectra are retained. If more are available, STRIDER
-   divides the chronology into equal blocks and selects the strongest measured
-   visit in each block, then restores chronological order.
-7. Observation intervals are divided by `1 + candidate redshift`. The temporal
-   comparison marginalizes over possible starting phases and uses
-   uncertainty-weighted relative brightness; it never receives a simulated
-   starting phase.
+   divides the sorted visit indices into eight blocks and selects the visit
+   with the highest measured median S/N in each block. These blocks need not
+   span equal durations.
+7. Time intervals from the first selected visit are divided by
+   `1 + candidate redshift`. The model combines comparisons over possible
+   starting phases and uses uncertainty-weighted relative brightness. It does
+   not receive the simulated starting phase.
 8. Spectral and temporal scores form one joint class-redshift surface.
 9. [`model/posterior.py`](../src/strider/model/posterior.py) applies the declared
    prior and redshift-cell widths before normalizing the joint distribution.
-10. A separate measured-signal component reports whether the spectra contain
-    enough information to use the conditional class-redshift result.
+10. A separate measured-signal component returns a source/noise score, with
+    calibrated source probability and grade when fitted. Its interpretation
+    depends on that calibration experiment.
 
-## Public result
+## Results
 
-The deployment result keeps three meanings separate:
+The result contains:
 
 - **classification:** raw and, when fitted, calibrated class probabilities;
 - **redshift:** the marginal posterior, primary and competing basins, and
@@ -54,9 +55,8 @@ The deployment result keeps three meanings separate:
 - **measured-signal reliability:** a raw score plus a calibrated source
   probability and descriptive grade when available.
 
-A narrow redshift posterior is not itself evidence that the measured signal is
-sufficient. An insufficient-spectral-information result should therefore remain
-distinct from class confidence or posterior shape.
+Interpret signal reliability using its calibration. Even a narrow redshift
+distribution can be unreliable when the measured signal is weak.
 
-Read [`architecture.md`](architecture.md) for the component boundaries and
-[`data_and_models.md`](data_and_models.md) for artifact provenance.
+Read the [model guide](architecture.md) for the calculations and the
+[usage guide](data_and_models.md) for input formats and model files.

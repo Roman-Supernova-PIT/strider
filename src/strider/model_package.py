@@ -306,10 +306,13 @@ def _json_safe(value: Any) -> Any:
 def _model_card(info: dict[str, Any]) -> str:
     classes = ", ".join(info["classes"])
     calibration_sentence = (
-        "The packaged class probabilities, redshift sets, and source-sufficiency "
-        "mapping have a fitted calibration artifact."
+        "Calibration is included for class probabilities, redshift sets and "
+        "signal reliability."
         if info["calibration_status"] == "fitted"
-        else "Calibration is not fitted; probability and grade claims are provisional."
+        else (
+            "Calibration is not fitted. Class probabilities are raw; "
+            "calibrated signal probability and grade are unavailable."
+        )
     )
     spacing = (
         "uniformly in log(1+z)"
@@ -322,21 +325,21 @@ def _model_card(info: dict[str, Any]) -> str:
         else f"the {info['redshift_prior']} prior"
     )
     metrics_sentence = (
-        "`metrics.json` contains the matching frozen test evaluation."
+        "`metrics.json` contains the matching final test evaluation."
         if info["metrics_status"] == "frozen_test"
-        else "No frozen test metrics are included in this package."
+        else "Test evaluation results are not included in this package."
     )
-    return f"""# {info['model_name']}
+    return f"""# STRIDER model
 
-This STRIDER model estimates a joint transient class and redshift distribution
+Run identifier: `{info['model_name']}`.
+
+This model estimates a joint transient class and redshift distribution
 from a time series of observer-frame Roman prism spectra. Its class set is:
 {classes}.
 
-The class-redshift distribution is conditional on the measured spectra
-containing enough information for the model. Always inspect the separate
-measured-signal reliability result, posterior width and multimodality before
-using a point estimate. Do not treat the reliability score as a calibrated
-probability unless `calibration.json` records a fitted calibration.
+Check signal reliability and alternative redshift solutions alongside the
+point estimate. Interpret the reliability score as a probability only when
+`calibration.json` records a fitted calibration.
 
 The model scans {info['redshift_bins']} candidate values from
 {info['redshift_min']:.3f} to {info['redshift_max']:.3f}, {spacing}, and reports

@@ -71,10 +71,9 @@ class CandidateTemporalTransformer(nn.Module):
         match_count = self.fine_class_count * self.starting_phase_count
         # Only change around the masked mean enters the learned path. Static
         # class--redshift evidence remains in the explicit reference baseline.
-        # The next three features are rest-frame offset under the candidate
-        # redshift and interval magnitude.  The legacy model can additionally
-        # receive measured visit S/N; the scientific control disables that
-        # learned route while retaining S/N for deterministic visit selection.
+        # Time features contain the rest-frame offset under the candidate
+        # redshift and the interval magnitude. Measured visit S/N is optional;
+        # it can be excluded from learning while retained for visit selection.
         # An optional final feature carries only within-object relative flux
         # evolution; one overall flux scale is removed first.
         self.input_projection = nn.Sequential(

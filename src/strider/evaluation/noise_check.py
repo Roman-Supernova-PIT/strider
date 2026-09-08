@@ -614,7 +614,7 @@ def _indices_from_object_list(
     view: str,
     object_list: Path,
 ) -> tuple[list[int], dict[int, str]]:
-    """Resolve a frozen-v2 manifest onto a prepared v3 split by unique SNID."""
+    """Match a requested object list to a prepared split using unique SNIDs."""
     requested = pd.read_csv(object_list)
     if "snid" not in requested:
         raise ValueError(f"object list lacks an snid column: {object_list}")
@@ -640,7 +640,7 @@ def _indices_from_object_list(
             actual = float(objects.iloc[index].redshift)
             if not np.isclose(actual, float(row.z_true), rtol=0.0, atol=1.0e-5):
                 raise ValueError(
-                    f"SNID {snid} has z={actual:.7f} in v3 but "
+                    f"SNID {snid} has z={actual:.7f} in the prepared data but "
                     f"z={float(row.z_true):.7f} in {object_list}"
                 )
         indices.append(index)

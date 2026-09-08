@@ -1,7 +1,8 @@
-# Architecture
+# STRIDER model
 
-This document describes the reference-based candidate currently under matched
-selection evaluation. It is not a performance claim or a frozen release.
+STRIDER compares measured spectra with a simulation-derived reference bank
+to estimate transient class and redshift jointly. The model is being updated
+and tested.
 
 ```mermaid
 flowchart LR
@@ -12,18 +13,18 @@ flowchart LR
     C --> F
     D --> F
     A --> G["Up to eight chronological temporal spectra"]
-    G --> H["Timing and relative-brightness compatibility"]
+    G --> H["Changes in brightness and timing"]
     E --> H
     F --> I["Joint class-redshift output"]
     H --> I
     A --> J["Measured-signal reliability"]
-    I --> K["Separate calibration and reporting"]
+    I --> K["Calibration and results"]
     J --> K
 ```
 
-## Runtime boundary
+## Inputs
 
-The enforced model input is defined by `measurement_inputs` in
+The input fields are defined by `measurement_inputs` in
 [`model/strider.py`](../src/strider/model/strider.py). Required quantities are
 measured flux, wavelength coverage, visit coverage and observer-time offsets.
 The optional measured quantities are visit flux scale, reported-error shape and
@@ -40,9 +41,9 @@ combination, [`model/coadd.py`](../src/strider/model/coadd.py) reverses that
 scaling and calculates the ordinary inverse-variance accumulated flux and its
 propagated uncertainty across all available visits.
 
-The current candidate does not use a broad signal-quality cut. It retains
-measured support above a float32 numerical relative-precision floor. This is a
-numerical rule, not a redshift-, class- or brightness-dependent selection.
+Measured wavelength bins are retained above a float32 relative-precision
+threshold. This threshold protects the numerical calculation; there is no
+additional fixed signal-to-noise cut.
 
 ## Spectral comparison
 
@@ -60,30 +61,31 @@ The 5% cosine edge taper is an influence weight. It is not multiplied into
 measured flux or propagated uncertainty. Its exact endpoints have zero matching
 influence; other measured bins remain unless they fall below the numerical
 precision floor. Reference-bank format `strider-roman-spectral-reference-v3`
-prevents an older tapered-flux bank from being loaded silently.
+is required when loading the bank. Check its construction settings and checksum
+against the model package.
 
 ## Simulation-derived reference bank
 
 [`atlas/roman_reference.py`](../src/strider/atlas/roman_reference.py) builds the
 fixed bank from clean spectra in the training split only. Training class,
 redshift and phase place those spectra on common rest-wavelength and broad-phase
-grids. That is supervised reference construction, not a runtime input route.
+grids. These labels are used to build the reference bank only.
 
 The bank stores multiple class and phase references, their measured support,
-the construction configuration and explicit `truth_used_at_runtime: false`
-metadata. Selection, calibration and test objects are not reference material.
+the construction configuration digest and explicit `truth_used_at_runtime: false`
+metadata. Archive the full construction configuration and source manifests
+separately. Selection, calibration and test objects are not reference material.
 
 ## Observation sequence
 
-The candidate uses at most eight chronological temporal spectra. When an object
-has more, the observation sequence is divided into chronological blocks and one
-visit is selected from each using measured median signal-to-noise. This preserves
-coverage across the history rather than taking only the earliest or strongest
-visits.
+The model uses up to eight spectra to describe how the transient changes over
+time. For longer sequences, the sorted visit indices are divided into eight
+blocks. The spectrum with the highest measured median signal-to-noise is
+selected from each block.
 
 For every candidate redshift, observer intervals become candidate rest-frame
 intervals through `dt / (1 + z)`. STRIDER compares broad phase-indexed reference
-histories while marginalizing the unknown starting phase. The temporal
+sequences and combines the results over possible starting phases. The temporal
 Transformer also receives uncertainty-weighted relative brightness after one
 object-wide scale is removed. The configured candidate does not expose the
 visit signal-to-noise statistic as a learned class-redshift feature.
@@ -99,16 +101,29 @@ calibration split:
 
 1. class-probability calibration;
 2. redshift coverage sets, which may be disconnected; and
-3. measured-signal reliability calibrated against matched source and blank
-   observations.
+3. signal reliability calibrated using source and noise-only observations
+   with matching observation properties.
 
 Raw results remain available. Calibration never rewrites the fitted model or
 turns measured-signal reliability into redshift confidence.
 
 ## Current status
 
-The frozen calibrated STRIDER baseline remains the verified comparison. The
-reference architecture is undergoing a corrected two-epoch selection gate. It
-must not be described as superior, final or production-ready until matched
-selection results are reviewed. Only then may the procedure be frozen,
-calibration fitted and the untouched final test opened.
+A supported trained model package will be provided after model selection,
+calibration and final evaluation. The implementation issues below are being
+reviewed as part of that work.
+
+## Known limitations
+
+The following issues are being checked before a trained model is released:
+
+- Data preparation can reject measured values because the corresponding
+  clean simulated values are not finite.
+- Preparation and inference can treat gaps in wavelength coverage differently.
+- Changing how training batches are divided can change the class-weighted
+  gradient.
+- Relative-brightness normalization can underflow for very small float32 fluxes.
+- Continuum removal can create a residual in a constant spectrum where the
+  relative precision is low.
+- When no class-redshift trial has valid wavelength support, the result still
+  contains a fallback distribution without flagging that condition.

@@ -7,8 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_uncertainty_eight_visit_test_changes_only_the_sequence_length() -> None:
-    baseline = load_config(ROOT / "configs/nersc/uncertainty_test.yaml")
-    eight_visit = load_config(ROOT / "configs/nersc/uncertainty_8_test.yaml")
+    baseline = load_config(ROOT / "configs/research/uncertainty_test.yaml")
+    eight_visit = load_config(ROOT / "configs/research/uncertainty_8_test.yaml")
 
     assert baseline["reference"]["sequence_visits"] == 6
     assert eight_visit["reference"]["sequence_visits"] == 8

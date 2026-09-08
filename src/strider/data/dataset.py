@@ -417,7 +417,7 @@ class SundialDataset(Dataset):
             )
         if self.include_clean_flux_target:
             # This is a simulation-only supervision target. measurement_inputs
-            # deliberately excludes it from every runtime model call.
+            # excludes it from every model call.
             result["clean_flux_target"] = torch.from_numpy(clean_array)
         return result
 
@@ -633,7 +633,7 @@ class SundialDataset(Dataset):
                     int(row.observation_index),
                     "reported_error_control",
                 )
-                # Preserve the historical deterministic control at its default
+                # Keep the same deterministic noise draw at the default
                 # scale.  Explicit noise sweeps add a repeat key so several paired
                 # draws can be compared without changing the draw between scales.
                 if self.generated_noise_scale is not None:
@@ -799,7 +799,7 @@ def _paired_standard_normal(
     repeat: int,
     seed: int,
 ) -> np.ndarray:
-    """Repeat the frozen-v2 native-bin Gaussian draw for selected visits.
+    """Repeat object-seeded Gaussian noise on native bins for selected visits.
 
     One object-level generator is advanced through visits in chronological
     order.  The same standard-normal realization is then multiplied by each

@@ -183,7 +183,7 @@ def main() -> None:
     report = compare(arguments.control, arguments.candidate)
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print("Roman spectral-reference selection gate")
+    print("Roman spectral-reference selection results")
     for name, passed in report["predefined_checks"].items():
         print(f"  {'PASS' if passed else 'FAIL'}  {name}")
     print(f"  decision: {'pass' if report['passes_first_selection_gate'] else 'do not promote'}")
