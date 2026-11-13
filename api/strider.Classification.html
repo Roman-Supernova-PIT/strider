@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Classification &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=4ae1632d" />
+    <script src="../_static/documentation_options.js?v=eb79866c"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="read_spectra" href="strider.io.read_spectra.html" />
+    <link rel="prev" title="Transient" href="strider.Transient.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="../index.html">
+    <img class="logo" src="../_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../api.html">API reference</a><ul>
+      <li>Previous: <a href="strider.Transient.html" title="previous chapter">Transient</a></li>
+      <li>Next: <a href="strider.io.read_spectra.html" title="next chapter">read_spectra</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="strider.Transient.html" title="Previous document">Transient</a>
+        </li>
+        <li>
+          <a href="strider.io.read_spectra.html" title="Next document">read_spectra</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="classification">
+<h1>Classification<a class="headerlink" href="#classification" title="Link to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="strider.Classification">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">strider.</span></span><span class="sig-name descname"><span class="pre">Classification</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="pre">model:</span> <span class="pre">str,</span> <span class="pre">fingerprint:</span> <span class="pre">str,</span> <span class="pre">class_probabilities:</span> <span class="pre">dict[str,</span> <span class="pre">float],</span> <span class="pre">equal_prior_probabilities:</span> <span class="pre">dict[str,</span> <span class="pre">float],</span> <span class="pre">p_ia:</span> <span class="pre">float,</span> <span class="pre">redshift:</span> <span class="pre">float,</span> <span class="pre">redshift_probability:</span> <span class="pre">float,</span> <span class="pre">redshift_peaks:</span> <span class="pre">list[tuple[float,</span> <span class="pre">float]],</span> <span class="pre">redshift_68:</span> <span class="pre">tuple[float,</span> <span class="pre">float],</span> <span class="pre">redshift_95:</span> <span class="pre">tuple[float,</span> <span class="pre">float],</span> <span class="pre">redshift_grid:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">redshift_cell_widths:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">redshift_posterior:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">class_redshift_posterior:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">class_redshifts:</span> <span class="pre">dict[str,</span> <span class="pre">float],</span> <span class="pre">log_evidence:</span> <span class="pre">~numpy.ndarray,</span> <span class="pre">source_probability:</span> <span class="pre">float</span> <span class="pre">|</span> <span class="pre">None,</span> <span class="pre">untrained_share:</span> <span class="pre">float,</span> <span class="pre">trained_classes:</span> <span class="pre">list[str],</span> <span class="pre">flags:</span> <span class="pre">dict[str,</span> <span class="pre">bool</span> <span class="pre">|</span> <span class="pre">None],</span> <span class="pre">best_match:</span> <span class="pre">tuple[str,</span> <span class="pre">float],</span> <span class="pre">next_best_class:</span> <span class="pre">str,</span> <span class="pre">match_gap:</span> <span class="pre">float,</span> <span class="pre">match_strength:</span> <span class="pre">str,</span> <span class="pre">warnings:</span> <span class="pre">list[str],</span> <span class="pre">visits_used:</span> <span class="pre">list[int],</span> <span class="pre">days_observed:</span> <span class="pre">float,</span> <span class="pre">signal_to_noise:</span> <span class="pre">float,</span> <span class="pre">dropped_visits:</span> <span class="pre">dict[int,</span> <span class="pre">str]</span> <span class="pre">=</span> <span class="pre">&lt;factory&gt;,</span> <span class="pre">error_scale:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">1.0,</span> <span class="pre">redshift_range:</span> <span class="pre">tuple[float,</span> <span class="pre">float]</span> <span class="pre">|</span> <span class="pre">None</span> <span class="pre">=</span> <span class="pre">None</span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/strider/io.html#Classification"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Classification" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>The result for one transient. <a class="reference internal" href="../results.html"><span class="doc">Reading the results</span></a> explains each field.</p>
+<p><code class="docutils literal notranslate"><span class="pre">print(result)</span></code> prints its card (<a class="reference internal" href="#strider.Classification.card" title="strider.Classification.card"><code class="xref py py-obj docutils literal notranslate"><span class="pre">card</span></code></a>), and <code class="docutils literal notranslate"><span class="pre">result.plot()</span></code> draws its figure.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>model</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – The model’s name, and a code that identifies it: its network, brightness term, priors and settings.</p></li>
+<li><p><strong>fingerprint</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – The model’s name, and a code that identifies it: its network, brightness term, priors and settings.</p></li>
+<li><p><strong>class_probabilities</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a><em> of </em><em>str to float</em>) – The probability of each class.</p></li>
+<li><p><strong>equal_prior_probabilities</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a><em> of </em><em>str to float</em>) – The class probabilities if every class were equally common.</p></li>
+<li><p><strong>p_ia</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The probability of a type Ia supernova.</p></li>
+<li><p><strong>redshift</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The redshift at the main peak of <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code>: where the most probability lies within 0.1.</p></li>
+<li><p><strong>redshift_probability</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The probability that the true redshift is within 0.1 of <code class="docutils literal notranslate"><span class="pre">redshift</span></code>.</p></li>
+<li><p><strong>redshift_peaks</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – Each distinct peak of <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code> as (redshift, probability within 0.1 of it), the main one
+first.</p></li>
+<li><p><strong>redshift_68</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The central 68% and 95% intervals of the redshift.</p></li>
+<li><p><strong>redshift_95</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The central 68% and 95% intervals of the redshift.</p></li>
+<li><p><strong>redshift_grid</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – The centre and width of each redshift cell.</p></li>
+<li><p><strong>redshift_cell_widths</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – The centre and width of each redshift cell.</p></li>
+<li><p><strong>redshift_posterior</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – The probability that the redshift is in each cell. It sums to 1. Divide by the cell widths to get a density.</p></li>
+<li><p><strong>class_redshift_posterior</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – (classes, cells) the redshift posterior if the transient is of each class, in the order of
+<code class="docutils literal notranslate"><span class="pre">class_probabilities</span></code>; NaN for a class with no posterior at the redshifts allowed. <a class="reference internal" href="#strider.Classification.redshift_given" title="strider.Classification.redshift_given"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_given</span></code></a>
+summarises one.</p></li>
+<li><p><strong>class_redshifts</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a><em> of </em><em>str to float</em>) – The redshift at the main peak of each class’s redshift posterior, NaN for a class with no posterior at the
+redshifts allowed.</p></li>
+<li><p><strong>log_evidence</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><em>numpy.ndarray</em></a>) – (classes, cells) the evidence map: the log evidence for each class and redshift cell, before any prior. It is
+-inf where the model had no training transients. Adding the log of a prior probability of each cell and
+normalising gives the posterior over the cells the model was trained on.</p></li>
+<li><p><strong>source_probability</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em> or </em><em>None</em>) – The probability that the visits hold a transient at all. None if the model has no source probability.</p></li>
+<li><p><strong>untrained_share</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The probability that the transient is of a subtype the model never saw at that redshift, within a class it did
+see there. Always 0 for a model with one subtype per class.</p></li>
+<li><p><strong>trained_classes</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – The classes the model had training transients of at the redshift shown.</p></li>
+<li><p><strong>flags</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a><em> of </em><em>str to bool</em>) – <code class="docutils literal notranslate"><span class="pre">weak_source</span></code>, <code class="docutils literal notranslate"><span class="pre">several_redshift_peaks</span></code>, <code class="docutils literal notranslate"><span class="pre">untrained_subtypes</span></code>, <code class="docutils literal notranslate"><span class="pre">few_classes_trained</span></code> and
+<code class="docutils literal notranslate"><span class="pre">brightness_failed</span></code> (the brightness term could not be computed, so the result uses the spectra alone).
+<code class="docutils literal notranslate"><span class="pre">weak_source</span></code> is None if the model has no source probability.</p></li>
+<li><p><strong>best_match</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><em>str and float</em>) – The class and redshift that match the data best, before any prior.</p></li>
+<li><p><strong>next_best_class</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – The best other class, at its own best redshift.</p></li>
+<li><p><strong>match_gap</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – How far the best match is ahead of the next-best class, in log units; not a probability.</p></li>
+<li><p><strong>match_strength</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – <code class="docutils literal notranslate"><span class="pre">high</span></code>, <code class="docutils literal notranslate"><span class="pre">medium</span></code> or <code class="docutils literal notranslate"><span class="pre">low</span></code>, from the match gap at levels fixed with the model.</p></li>
+<li><p><strong>warnings</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a>) – Why the best match may be less clear than its strength says.</p></li>
+<li><p><strong>visits_used</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><em>int</em></a>) – The position in the input of each visit used, counting from 0, in time order.</p></li>
+<li><p><strong>days_observed</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The observer-frame days from the first visit used to the last.</p></li>
+<li><p><strong>signal_to_noise</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The median S/N per pixel of the visits used, combined on their own pixels.</p></li>
+<li><p><strong>dropped_visits</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a><em> of </em><em>int to str</em>) – The reason each visit was left out, by its position in the input.</p></li>
+<li><p><strong>error_scale</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a>) – The factor the errors were multiplied by before classifying (<code class="docutils literal notranslate"><span class="pre">error_scale</span></code> of <a class="reference internal" href="strider.Model.html#strider.Model.classify" title="strider.Model.classify"><code class="xref py py-obj docutils literal notranslate"><span class="pre">strider.Model.classify</span></code></a>,
+measured if it was <code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code>); 1 if they were used as given.</p></li>
+<li><p><strong>redshift_range</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><em>tuple</em></a><em> of </em><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em> or </em><em>None</em>) – The redshift range the result was restricted to (<code class="docutils literal notranslate"><span class="pre">redshift_range</span></code> of <a class="reference internal" href="strider.Model.html#strider.Model.classify" title="strider.Model.classify"><code class="xref py py-obj docutils literal notranslate"><span class="pre">strider.Model.classify</span></code></a>), or None.
+The redshifts and intervals then lie inside it.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Attributes Summary</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.best_match" title="strider.Classification.best_match"><code class="xref py py-obj docutils literal notranslate"><span class="pre">best_match</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.class_probabilities" title="strider.Classification.class_probabilities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_probabilities</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.class_redshift_posterior" title="strider.Classification.class_redshift_posterior"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_redshift_posterior</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.class_redshifts" title="strider.Classification.class_redshifts"><code class="xref py py-obj docutils literal notranslate"><span class="pre">class_redshifts</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.days_observed" title="strider.Classification.days_observed"><code class="xref py py-obj docutils literal notranslate"><span class="pre">days_observed</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.dropped_visits" title="strider.Classification.dropped_visits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">dropped_visits</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.equal_prior_probabilities" title="strider.Classification.equal_prior_probabilities"><code class="xref py py-obj docutils literal notranslate"><span class="pre">equal_prior_probabilities</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.error_scale" title="strider.Classification.error_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">error_scale</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.fingerprint" title="strider.Classification.fingerprint"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fingerprint</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.flags" title="strider.Classification.flags"><code class="xref py py-obj docutils literal notranslate"><span class="pre">flags</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.log_evidence" title="strider.Classification.log_evidence"><code class="xref py py-obj docutils literal notranslate"><span class="pre">log_evidence</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.match_gap" title="strider.Classification.match_gap"><code class="xref py py-obj docutils literal notranslate"><span class="pre">match_gap</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.match_strength" title="strider.Classification.match_strength"><code class="xref py py-obj docutils literal notranslate"><span class="pre">match_strength</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.model" title="strider.Classification.model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">model</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.next_best_class" title="strider.Classification.next_best_class"><code class="xref py py-obj docutils literal notranslate"><span class="pre">next_best_class</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.p_ia" title="strider.Classification.p_ia"><code class="xref py py-obj docutils literal notranslate"><span class="pre">p_ia</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.redshift" title="strider.Classification.redshift"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.redshift_68" title="strider.Classification.redshift_68"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_68</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.redshift_95" title="strider.Classification.redshift_95"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_95</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.redshift_cell_widths" title="strider.Classification.redshift_cell_widths"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_cell_widths</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.redshift_grid" title="strider.Classification.redshift_grid"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_grid</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.redshift_peaks" title="strider.Classification.redshift_peaks"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_peaks</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.redshift_posterior" title="strider.Classification.redshift_posterior"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_posterior</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.redshift_probability" title="strider.Classification.redshift_probability"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_probability</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.redshift_range" title="strider.Classification.redshift_range"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_range</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.second_class" title="strider.Classification.second_class"><code class="xref py py-obj docutils literal notranslate"><span class="pre">second_class</span></code></a></p></td>
+<td><p>The second most likely class.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.second_probability" title="strider.Classification.second_probability"><code class="xref py py-obj docutils literal notranslate"><span class="pre">second_probability</span></code></a></p></td>
+<td><p>The probability of the second most likely class.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.signal_to_noise" title="strider.Classification.signal_to_noise"><code class="xref py py-obj docutils literal notranslate"><span class="pre">signal_to_noise</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.source_probability" title="strider.Classification.source_probability"><code class="xref py py-obj docutils literal notranslate"><span class="pre">source_probability</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.top_class" title="strider.Classification.top_class"><code class="xref py py-obj docutils literal notranslate"><span class="pre">top_class</span></code></a></p></td>
+<td><p>The most likely class.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.top_probability" title="strider.Classification.top_probability"><code class="xref py py-obj docutils literal notranslate"><span class="pre">top_probability</span></code></a></p></td>
+<td><p>The probability of the most likely class.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.trained_classes" title="strider.Classification.trained_classes"><code class="xref py py-obj docutils literal notranslate"><span class="pre">trained_classes</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.untrained_share" title="strider.Classification.untrained_share"><code class="xref py py-obj docutils literal notranslate"><span class="pre">untrained_share</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.visits_used" title="strider.Classification.visits_used"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visits_used</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.warnings" title="strider.Classification.warnings"><code class="xref py py-obj docutils literal notranslate"><span class="pre">warnings</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.card" title="strider.Classification.card"><code class="xref py py-obj docutils literal notranslate"><span class="pre">card</span></code></a>([name])</p></td>
+<td><p>Return the result as a short card: the most likely classes, the redshift and its 68% range, the match strength and any warnings, the data, and any checks that need attention.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.plot" title="strider.Classification.plot"><code class="xref py py-obj docutils literal notranslate"><span class="pre">plot</span></code></a>([path, name])</p></td>
+<td><p>Draw the result's figure: the spectra and their combination, the best-matching references of the two most likely classes, each visit's brightness in the four bands against SN Ia's light curves fitted to it, every class at every redshift, and the class probabilities and the redshift posterior of SN Ia and of the other classes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Classification.redshift_given" title="strider.Classification.redshift_given"><code class="xref py py-obj docutils literal notranslate"><span class="pre">redshift_given</span></code></a>(name)</p></td>
+<td><p>Return the redshift if the transient is of class <code class="docutils literal notranslate"><span class="pre">name</span></code>: its main peak, its central 68% and 95% intervals, and its posterior.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Classification.to_dict" title="strider.Classification.to_dict"><code class="xref py py-obj docutils literal notranslate"><span class="pre">to_dict</span></code></a>()</p></td>
+<td><p>Return the result as a dictionary that <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a> can write, without the evidence map.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.best_match">
+<span class="sig-name descname"><span class="pre">best_match</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.best_match" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.class_probabilities">
+<span class="sig-name descname"><span class="pre">class_probabilities</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.class_probabilities" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.class_redshift_posterior">
+<span class="sig-name descname"><span class="pre">class_redshift_posterior</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.class_redshift_posterior" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.class_redshifts">
+<span class="sig-name descname"><span class="pre">class_redshifts</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.class_redshifts" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.days_observed">
+<span class="sig-name descname"><span class="pre">days_observed</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.days_observed" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.dropped_visits">
+<span class="sig-name descname"><span class="pre">dropped_visits</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.dropped_visits" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.equal_prior_probabilities">
+<span class="sig-name descname"><span class="pre">equal_prior_probabilities</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.equal_prior_probabilities" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.error_scale">
+<span class="sig-name descname"><span class="pre">error_scale</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></span><a class="headerlink" href="#strider.Classification.error_scale" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.fingerprint">
+<span class="sig-name descname"><span class="pre">fingerprint</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.fingerprint" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.flags">
+<span class="sig-name descname"><span class="pre">flags</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.flags" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.log_evidence">
+<span class="sig-name descname"><span class="pre">log_evidence</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.log_evidence" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.match_gap">
+<span class="sig-name descname"><span class="pre">match_gap</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.match_gap" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.match_strength">
+<span class="sig-name descname"><span class="pre">match_strength</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.match_strength" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.model">
+<span class="sig-name descname"><span class="pre">model</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.model" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.next_best_class">
+<span class="sig-name descname"><span class="pre">next_best_class</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.next_best_class" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.p_ia">
+<span class="sig-name descname"><span class="pre">p_ia</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.p_ia" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift">
+<span class="sig-name descname"><span class="pre">redshift</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_68">
+<span class="sig-name descname"><span class="pre">redshift_68</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_68" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_95">
+<span class="sig-name descname"><span class="pre">redshift_95</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_95" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_cell_widths">
+<span class="sig-name descname"><span class="pre">redshift_cell_widths</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_cell_widths" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_grid">
+<span class="sig-name descname"><span class="pre">redshift_grid</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_grid" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_peaks">
+<span class="sig-name descname"><span class="pre">redshift_peaks</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_peaks" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_posterior">
+<span class="sig-name descname"><span class="pre">redshift_posterior</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">ndarray</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_posterior" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_probability">
+<span class="sig-name descname"><span class="pre">redshift_probability</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.redshift_probability" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.redshift_range">
+<span class="sig-name descname"><span class="pre">redshift_range</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#tuple" title="(in Python v3.15)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#strider.Classification.redshift_range" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.second_class">
+<span class="sig-name descname"><span class="pre">second_class</span></span><a class="headerlink" href="#strider.Classification.second_class" title="Link to this definition">¶</a></dt>
+<dd><p>The second most likely class.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.second_probability">
+<span class="sig-name descname"><span class="pre">second_probability</span></span><a class="headerlink" href="#strider.Classification.second_probability" title="Link to this definition">¶</a></dt>
+<dd><p>The probability of the second most likely class.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.signal_to_noise">
+<span class="sig-name descname"><span class="pre">signal_to_noise</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.signal_to_noise" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.source_probability">
+<span class="sig-name descname"><span class="pre">source_probability</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.source_probability" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.top_class">
+<span class="sig-name descname"><span class="pre">top_class</span></span><a class="headerlink" href="#strider.Classification.top_class" title="Link to this definition">¶</a></dt>
+<dd><p>The most likely class.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.top_probability">
+<span class="sig-name descname"><span class="pre">top_probability</span></span><a class="headerlink" href="#strider.Classification.top_probability" title="Link to this definition">¶</a></dt>
+<dd><p>The probability of the most likely class.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.trained_classes">
+<span class="sig-name descname"><span class="pre">trained_classes</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.trained_classes" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.untrained_share">
+<span class="sig-name descname"><span class="pre">untrained_share</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.untrained_share" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.visits_used">
+<span class="sig-name descname"><span class="pre">visits_used</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.visits_used" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Classification.warnings">
+<span class="sig-name descname"><span class="pre">warnings</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Classification.warnings" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="strider.Classification.card">
+<span class="sig-name descname"><span class="pre">card</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../_modules/strider/io.html#Classification.card"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Classification.card" title="Link to this definition">¶</a></dt>
+<dd><p>Return the result as a short card: the most likely classes, the redshift and its 68% range, the match
+strength and any warnings, the data, and any checks that need attention. <code class="docutils literal notranslate"><span class="pre">name</span></code> heads it.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="strider.Classification.plot">
+<span class="sig-name descname"><span class="pre">plot</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/os.html#os.PathLike" title="(in Python v3.15)"><span class="pre">PathLike</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/strider/io.html#Classification.plot"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Classification.plot" title="Link to this definition">¶</a></dt>
+<dd><p>Draw the result’s figure: the spectra and their combination, the best-matching references of the two
+most likely classes, each visit’s brightness in the four bands against SN Ia’s light curves fitted to it,
+every class at every redshift, and the class probabilities and the redshift posterior of SN Ia and of the
+other classes. Needs matplotlib (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">&quot;roman-snpit-strider[plot]&quot;</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>path</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em> or </em><em>path-like</em><em>, </em><em>optional</em>) – A file to save the figure to, such as <code class="docutils literal notranslate"><span class="pre">result.png</span></code> or <code class="docutils literal notranslate"><span class="pre">result.pdf</span></code>.</p></li>
+<li><p><strong>name</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><em>str</em></a><em>, </em><em>optional</em>) – A title for the figure.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference external" href="https://matplotlib.org/stable/api/_as_gen/matplotlib.figure.Figure.html#matplotlib.figure.Figure" title="(in Matplotlib v3.11.2)">matplotlib.figure.Figure</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="strider.Classification.redshift_given">
+<span class="sig-name descname"><span class="pre">redshift_given</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="strider.io.Redshift.html#strider.io.Redshift" title="strider.io.Redshift"><span class="pre">Redshift</span></a></span></span><a class="reference internal" href="../_modules/strider/io.html#Classification.redshift_given"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Classification.redshift_given" title="Link to this definition">¶</a></dt>
+<dd><p>Return the redshift if the transient is of class <code class="docutils literal notranslate"><span class="pre">name</span></code>: its main peak, its central 68% and 95%
+intervals, and its posterior. They are NaN if the class has no probability at any redshift.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="strider.Classification.to_dict">
+<span class="sig-name descname"><span class="pre">to_dict</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../_modules/strider/io.html#Classification.to_dict"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Classification.to_dict" title="Link to this definition">¶</a></dt>
+<dd><p>Return the result as a dictionary that <a class="reference external" href="https://docs.python.org/3/library/json.html#json.dumps" title="(in Python v3.15)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">json.dumps</span></code></a> can write, without the evidence map.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="strider.Transient.html" title="Previous document">Transient</a>
+        </li>
+        <li>
+          <a href="strider.io.read_spectra.html" title="Next document">read_spectra</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/strider.Classification.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

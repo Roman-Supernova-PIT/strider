@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Transient &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="../_static/graphviz.css?v=4ae1632d" />
+    <script src="../_static/documentation_options.js?v=eb79866c"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Classification" href="strider.Classification.html" />
+    <link rel="prev" title="Visit" href="strider.Visit.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="../index.html">
+    <img class="logo" src="../_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary.html">Glossary</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  <li><a href="../api.html">API reference</a><ul>
+      <li>Previous: <a href="strider.Visit.html" title="previous chapter">Visit</a></li>
+      <li>Next: <a href="strider.Classification.html" title="next chapter">Classification</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="strider.Visit.html" title="Previous document">Visit</a>
+        </li>
+        <li>
+          <a href="strider.Classification.html" title="Next document">Classification</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="transient">
+<h1>Transient<a class="headerlink" href="#transient" title="Link to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="strider.Transient">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">strider.</span></span><span class="sig-name descname"><span class="pre">Transient</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">visits</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="strider.Visit.html#strider.Visit" title="strider.io.Visit"><span class="pre">Visit</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host_redshift</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">host_redshift_error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/strider/io.html#Transient"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Transient" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>One transient: its visits, and its host galaxy’s redshift if known.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>visits</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><em>list</em></a><em> of </em><a class="reference internal" href="strider.Visit.html#strider.Visit" title="strider.Visit"><em>strider.Visit</em></a>) – Its visits, in any order.</p></li>
+<li><p><strong>host_redshift</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em>, </em><em>optional</em>) – The host galaxy’s spectroscopic or photometric redshift and its 1σ error. Give both or neither.</p></li>
+<li><p><strong>host_redshift_error</strong> (<a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><em>float</em></a><em>, </em><em>optional</em>) – The host galaxy’s spectroscopic or photometric redshift and its 1σ error. Give both or neither.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Attributes Summary</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Transient.host_redshift" title="strider.Transient.host_redshift"><code class="xref py py-obj docutils literal notranslate"><span class="pre">host_redshift</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#strider.Transient.host_redshift_error" title="strider.Transient.host_redshift_error"><code class="xref py py-obj docutils literal notranslate"><span class="pre">host_redshift_error</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Transient.visits" title="strider.Transient.visits"><code class="xref py py-obj docutils literal notranslate"><span class="pre">visits</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Methods Summary</p>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#strider.Transient.from_table" title="strider.Transient.from_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">from_table</span></code></a>(table)</p></td>
+<td><p>Make a transient from a table with one row per pixel.</p></td>
+</tr>
+</tbody>
+</table>
+<p class="rubric">Attributes Documentation</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Transient.host_redshift">
+<span class="sig-name descname"><span class="pre">host_redshift</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#strider.Transient.host_redshift" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Transient.host_redshift_error">
+<span class="sig-name descname"><span class="pre">host_redshift_error</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">None</span></span><a class="headerlink" href="#strider.Transient.host_redshift_error" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="strider.Transient.visits">
+<span class="sig-name descname"><span class="pre">visits</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference internal" href="strider.Visit.html#strider.Visit" title="strider.io.Visit"><span class="pre">Visit</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">&lt;dataclasses._MISSING_TYPE</span> <span class="pre">object&gt;</span></span><a class="headerlink" href="#strider.Transient.visits" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<p class="rubric">Methods Documentation</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="strider.Transient.from_table">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">from_table</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">table</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#strider.Transient" title="strider.io.Transient"><span class="pre">Transient</span></a></span></span><a class="reference internal" href="../_modules/strider/io.html#Transient.from_table"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#strider.Transient.from_table" title="Link to this definition">¶</a></dt>
+<dd><p>Make a transient from a table with one row per pixel.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>table</strong> (<em>pandas.DataFrame</em><em>, </em><em>astropy.table.Table</em><em> or </em><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><em>dict</em></a><em> of </em><em>array_like</em>) – The columns <code class="docutils literal notranslate"><span class="pre">mjd</span></code>, <code class="docutils literal notranslate"><span class="pre">wavelength</span></code> in Å, <code class="docutils literal notranslate"><span class="pre">flux</span></code> and <code class="docutils literal notranslate"><span class="pre">error</span></code>. Optional columns are <code class="docutils literal notranslate"><span class="pre">mask</span></code>, True for
+pixels to ignore, and <code class="docutils literal notranslate"><span class="pre">host_redshift</span></code> and <code class="docutils literal notranslate"><span class="pre">host_redshift_error</span></code>, the same on every row. The column
+<code class="docutils literal notranslate"><span class="pre">time</span></code> can stand for <code class="docutils literal notranslate"><span class="pre">mjd</span></code>, and <code class="docutils literal notranslate"><span class="pre">flux_err</span></code> or <code class="docutils literal notranslate"><span class="pre">fluxerr</span></code> for <code class="docutils literal notranslate"><span class="pre">error</span></code>; case does not matter.
+The rows with one MJD are one visit. Astropy columns with units are converted: wavelength to Å, flux and
+error to f_λ.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#strider.Transient" title="strider.Transient">strider.Transient</a></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="strider.Visit.html" title="Previous document">Visit</a>
+        </li>
+        <li>
+          <a href="strider.Classification.html" title="Next document">Classification</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="../_sources/api/strider.Transient.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

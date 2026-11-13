@@ -1,0 +1,6 @@
+model_dir
+=========
+
+.. currentmodule:: strider.registry
+
+.. autofunction:: model_dir

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Glossary &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=eb79866c"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API reference" href="api.html" />
+    <link rel="prev" title="Running on the Roman SMDC" href="smdc.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="index.html">
+    <img class="logo" src="_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="smdc.html" title="previous chapter">Running on the Roman SMDC</a></li>
+      <li>Next: <a href="api.html" title="next chapter">API reference</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="smdc.html" title="Previous document">Running on the Roman SMDC</a>
+        </li>
+        <li>
+          <a href="api.html" title="Next document">API reference</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="glossary">
+<h1>Glossary<a class="headerlink" href="#glossary" title="Link to this heading">¶</a></h1>
+<dl class="simple">
+<dt>visit</dt><dd><p>One prism spectrum of the transient, taken at one MJD.</p>
+</dd>
+<dt>MJD</dt><dd><p>Modified Julian Date, in days.</p>
+</dd>
+<dt>f_λ</dt><dd><p>Flux per unit wavelength.</p>
+</dd>
+<dt>native pixel</dt><dd><p>A pixel of a spectrum as you give it, before STRIDER resamples it onto the model’s wavelength grid.</p>
+</dd>
+<dt>S/N</dt><dd><p>Signal-to-noise ratio. Model cards give it per native pixel.</p>
+</dd>
+<dt>phase</dt><dd><p>Days since the transient’s peak brightness, in its rest frame. STRIDER does not estimate it.</p>
+</dd>
+<dt>prior</dt><dd><p>How common each class is at each redshift, before looking at the data. STRIDER uses the mix of transients Roman
+is expected to find, given on the model card.</p>
+</dd>
+<dt>posterior</dt><dd><p>The probability of each class or redshift, from the data and the prior together.</p>
+</dd>
+<dt>redshift cell</dt><dd><p>One of the redshift bins STRIDER scores. <code class="docutils literal notranslate"><span class="pre">redshift_grid</span></code> gives their centres.</p>
+</dd>
+<dt>source probability</dt><dd><p>The probability that the visits hold a transient at all.</p>
+</dd>
+<dt>subtype</dt><dd><p>A simulated type within a class. In <code class="docutils literal notranslate"><span class="pre">strider-15class</span></code>, each class is a single subtype.</p>
+</dd>
+<dt>model package</dt><dd><p>The one file that holds a model, with its priors and model card.</p>
+</dd>
+<dt>model card</dt><dd><p>A short description of a model: its classes, training, valid range, performance and known failures.</p>
+</dd>
+<dt>fingerprint</dt><dd><p>A code that identifies a model: its network, brightness term, priors and settings. Every result records it,
+with a checksum of every file of the model package.</p>
+</dd>
+<dt>PIT</dt><dd><p>The Roman Supernova Project Infrastructure Team, which maintains STRIDER.</p>
+</dd>
+<dt>SMDC</dt><dd><p>The Roman computing centre where the PIT runs its software (<a class="reference internal" href="smdc.html"><span class="doc">Running on the Roman SMDC</span></a>).</p>
+</dd>
+</dl>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="smdc.html" title="Previous document">Running on the Roman SMDC</a>
+        </li>
+        <li>
+          <a href="api.html" title="Next document">API reference</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/glossary.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

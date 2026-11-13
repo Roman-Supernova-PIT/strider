@@ -1,0 +1,25 @@
+Visit
+=====
+
+.. currentmodule:: strider
+
+.. autoclass:: Visit
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Visit.error
+      ~Visit.flux
+      ~Visit.mask
+      ~Visit.mjd
+      ~Visit.wavelength
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: error
+   .. autoattribute:: flux
+   .. autoattribute:: mask
+   .. autoattribute:: mjd
+   .. autoattribute:: wavelength

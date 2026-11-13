@@ -1,0 +1,6 @@
+write_results
+=============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: write_results

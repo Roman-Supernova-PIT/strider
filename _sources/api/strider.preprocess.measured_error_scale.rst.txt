@@ -1,0 +1,6 @@
+measured_error_scale
+====================
+
+.. currentmodule:: strider.preprocess
+
+.. autofunction:: measured_error_scale

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>API reference &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=eb79866c"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="load_model" href="api/strider.load_model.html" />
+    <link rel="prev" title="Glossary" href="glossary.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="index.html">
+    <img class="logo" src="_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="glossary.html" title="previous chapter">Glossary</a></li>
+      <li>Next: <a href="api/strider.load_model.html" title="next chapter">load_model</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="glossary.html" title="Previous document">Glossary</a>
+        </li>
+        <li>
+          <a href="api/strider.load_model.html" title="Next document">load_model</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="api-reference">
+<h1>API reference<a class="headerlink" href="#api-reference" title="Link to this heading">¶</a></h1>
+<section id="module-strider">
+<span id="strider-package"></span><h2>strider Package<a class="headerlink" href="#module-strider" title="Link to this heading">¶</a></h2>
+<p>STRIDER identifies transients from their Roman prism spectra.</p>
+<section id="functions">
+<h3>Functions<a class="headerlink" href="#functions" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.load_model.html#strider.load_model" title="strider.load_model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_model</span></code></a>([name, device, sha256])</p></td>
+<td><p>Load a model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.load_example.html#strider.load_example" title="strider.load_example"><code class="xref py py-obj docutils literal notranslate"><span class="pre">load_example</span></code></a>([batch])</p></td>
+<td><p>Return the bundled example: a simulated SN Ia at redshift 0.87 with eleven visits.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="classes">
+<h3>Classes<a class="headerlink" href="#classes" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.Model.html#strider.Model" title="strider.Model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Model</span></code></a>(package, network[, device])</p></td>
+<td><p>A trained STRIDER model.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.Visit.html#strider.Visit" title="strider.Visit"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Visit</span></code></a>(wavelength, flux, error, mjd[, mask])</p></td>
+<td><p>One visit: a prism spectrum of a transient at one date.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.Transient.html#strider.Transient" title="strider.Transient"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Transient</span></code></a>(visits[, host_redshift, ...])</p></td>
+<td><p>One transient: its visits, and its host galaxy's redshift if known.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.Classification.html#strider.Classification" title="strider.Classification"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Classification</span></code></a>(model, fingerprint, ...)</p></td>
+<td><p>The result for one transient.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-strider.io">
+<span id="strider-io-module"></span><h2>strider.io Module<a class="headerlink" href="#module-strider.io" title="Link to this heading">¶</a></h2>
+<p>Reading spectra, and writing results.</p>
+<p>Many transients go in a table of spectra: a parquet file with one row per visit. Its columns are <code class="docutils literal notranslate"><span class="pre">object_id</span></code>,
+<code class="docutils literal notranslate"><span class="pre">mjd</span></code>, and <code class="docutils literal notranslate"><span class="pre">wavelength</span></code>, <code class="docutils literal notranslate"><span class="pre">flux</span></code> and <code class="docutils literal notranslate"><span class="pre">error</span></code>, each a list. Optional columns are <code class="docutils literal notranslate"><span class="pre">mask</span></code>, True for pixels to
+ignore, and <code class="docutils literal notranslate"><span class="pre">host_redshift</span></code> and <code class="docutils literal notranslate"><span class="pre">host_redshift_error</span></code>, the same on every row of an object. One transient can also
+be a CSV or ECSV file with one row per pixel (<a class="reference internal" href="api/strider.io.read_transient.html#strider.io.read_transient" title="strider.io.read_transient"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_transient</span></code></a>), or SMDC spectrum files, one per visit (<a class="reference internal" href="api/strider.io.read_smdc.html#strider.io.read_smdc" title="strider.io.read_smdc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_smdc</span></code></a>).</p>
+<p>Results are written in the format the file’s ending gives: <code class="docutils literal notranslate"><span class="pre">.parquet</span></code>, one row per object (<a class="reference internal" href="api/strider.io.results_table.html#strider.io.results_table" title="strider.io.results_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">results_table</span></code></a>);
+<code class="docutils literal notranslate"><span class="pre">.csv</span></code>, the same rows without the redshift posterior; <code class="docutils literal notranslate"><span class="pre">.json</span></code>, each object’s full result. The evidence maps go
+in an HDF5 file (<a class="reference internal" href="api/strider.io.write_evidence_maps.html#strider.io.write_evidence_maps" title="strider.io.write_evidence_maps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_evidence_maps</span></code></a>), and the redshift posteriors in qp’s format (<a class="reference internal" href="api/strider.io.write_redshift_curves.html#strider.io.write_redshift_curves" title="strider.io.write_redshift_curves"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_redshift_curves</span></code></a>).</p>
+<section id="id1">
+<h3>Functions<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.io.read_spectra.html#strider.io.read_spectra" title="strider.io.read_spectra"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_spectra</span></code></a>(path)</p></td>
+<td><p>Read a table of spectra.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.io.read_transient.html#strider.io.read_transient" title="strider.io.read_transient"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_transient</span></code></a>(path)</p></td>
+<td><p>Read one transient from a CSV or ECSV file with one row per pixel.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.io.read_smdc.html#strider.io.read_smdc" title="strider.io.read_smdc"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_smdc</span></code></a>(paths, mjd[, host_redshift, ...])</p></td>
+<td><p>Read one transient from SMDC spectrum files, one file per visit.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.io.write_spectra.html#strider.io.write_spectra" title="strider.io.write_spectra"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_spectra</span></code></a>(objects, path)</p></td>
+<td><p>Write transients, by object id, to a table of spectra that <a class="reference internal" href="api/strider.io.read_spectra.html#strider.io.read_spectra" title="strider.io.read_spectra"><code class="xref py py-obj docutils literal notranslate"><span class="pre">read_spectra</span></code></a> can read.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.io.results_schema.html#strider.io.results_schema" title="strider.io.results_schema"><code class="xref py py-obj docutils literal notranslate"><span class="pre">results_schema</span></code></a>(model[, summary])</p></td>
+<td><p>Return the pyarrow schema of the results table of <code class="docutils literal notranslate"><span class="pre">model</span></code>, a <a class="reference internal" href="api/strider.Model.html#strider.Model" title="strider.Model"><code class="xref py py-obj docutils literal notranslate"><span class="pre">strider.Model</span></code></a>.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.io.results_table.html#strider.io.results_table" title="strider.io.results_table"><code class="xref py py-obj docutils literal notranslate"><span class="pre">results_table</span></code></a>(results, model[, summary])</p></td>
+<td><p>Return a pyarrow table of results, with one row per object.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.io.write_results.html#strider.io.write_results" title="strider.io.write_results"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_results</span></code></a>(results, path, model)</p></td>
+<td><p>Write results, by object id, to a file.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.io.write_evidence_maps.html#strider.io.write_evidence_maps" title="strider.io.write_evidence_maps"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_evidence_maps</span></code></a>(results, path, model)</p></td>
+<td><p>Write the evidence maps of the transients classified to an HDF5 file (<code class="xref py py-obj docutils literal notranslate"><span class="pre">EvidenceMapsFile</span></code>).</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.io.write_redshift_curves.html#strider.io.write_redshift_curves" title="strider.io.write_redshift_curves"><code class="xref py py-obj docutils literal notranslate"><span class="pre">write_redshift_curves</span></code></a>(results, path, model)</p></td>
+<td><p>Write the redshift posteriors of the transients classified as a qp ensemble (<code class="xref py py-obj docutils literal notranslate"><span class="pre">RedshiftCurvesFile</span></code>).</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id2">
+<h3>Classes<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.io.Redshift.html#strider.io.Redshift" title="strider.io.Redshift"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Redshift</span></code></a>(redshift, redshift_68, redshift_95, ...)</p></td>
+<td><p>The redshift of a transient if it is of one class (<code class="xref py py-obj docutils literal notranslate"><span class="pre">Classification.redshift_given</span></code>): its main peak, its central 68% and 95% intervals and its posterior.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-strider.preprocess">
+<span id="strider-preprocess-module"></span><h2>strider.preprocess Module<a class="headerlink" href="#module-strider.preprocess" title="Link to this heading">¶</a></h2>
+<p>From measured prism spectra to the network’s inputs.</p>
+<p>Each visit is prepared on its own, in float32, as in training, and as the package’s <code class="docutils literal notranslate"><span class="pre">preprocessing.json</span></code>
+describes:</p>
+<ol class="arabic simple">
+<li><p>Native pixels with a non-finite wavelength are left out and the rest sorted by wavelength. A pixel is bad if it
+is masked, its flux or error is not finite, or its error is not positive.</p></li>
+<li><p>The visit scale is the lower quartile of the errors of the pixels not masked, where finite and positive.</p></li>
+<li><p>The visit is used only if its pixels cover the model’s wavelength grid, with pixel edges halfway between centres
+and the end edges mirrored, to within <code class="xref py py-obj docutils literal notranslate"><span class="pre">COVERAGE_SHORTFALL</span></code> of the grid’s span in ln λ at each end; it has at least
+two good pixels; and some grid point is interpolated from good pixels. Otherwise it is dropped, and reported. At
+an end the visit falls short of, the grid points beyond its last pixel are masked.</p></li>
+<li><p>The flux over the scale is interpolated linearly onto the grid, and its error propagated through the same
+interpolation. Every grid point whose interpolation touches a bad pixel is masked; the visit is kept.</p></li>
+</ol>
+<p>The visits are then put in time order, with times in observer-frame days since the first visit kept; visits on one
+date are ordered by their content, so their input order does not matter.</p>
+<p>With the model’s noise profile, each visit kept also gets its four band fluxes and their errors (<code class="xref py py-obj docutils literal notranslate"><span class="pre">strider.bands</span></code>),
+from its native pixels in float64, for the brightness term.</p>
+<p>The brightness term draws its null copies from a seed of the input that does not depend on the flux unit, on the
+order of visits on one date, or on <code class="docutils literal notranslate"><span class="pre">error_scale</span></code>, so the same input, in any unit, gives the same copies:</p>
+<ul class="simple">
+<li><p>σ is the median of the input errors (float64) of the good native pixels of every visit kept;</p></li>
+<li><p>each visit’s tie keys are the 8-byte BLAKE2b digests, read little-endian, of rint(1000 f / (σ / error_scale)),
+rint(1000 e / σ) and rint(1000 λ), each as little-endian int64, and of its good-pixel mask as uint8: f and e the
+input flux and error of its good native pixels, λ the wavelengths of all its native pixels, in wavelength order;
+visits are ordered by MJD, then by the four keys in that order;</p></li>
+<li><p>in that order, the seed is the 8-byte BLAKE2b digest, read little-endian, of rint(10⁶ (MJD − first MJD)) and
+rint(1000 ln(median of the visit’s good errors / σ)), each as little-endian int64, then the grid mask as uint8,
+visits by row; rint rounds halves to even.</p></li>
+</ul>
+<section id="id3">
+<h3>Functions<a class="headerlink" href="#id3" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.preprocess.measured_error_scale.html#strider.preprocess.measured_error_scale" title="strider.preprocess.measured_error_scale"><code class="xref py py-obj docutils literal notranslate"><span class="pre">measured_error_scale</span></code></a>(wavelength, flux, error)</p></td>
+<td><p>The factor by which the visits' scatter exceeds their stated errors, never below 1.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="id4">
+<h3>Classes<a class="headerlink" href="#id4" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+</tbody>
+</table>
+</section>
+</section>
+<section id="module-strider.registry">
+<span id="strider-registry-module"></span><h2>strider.registry Module<a class="headerlink" href="#module-strider.registry" title="Link to this heading">¶</a></h2>
+<p>Released STRIDER models, and the folder they are downloaded to.</p>
+<section id="id5">
+<h3>Functions<a class="headerlink" href="#id5" title="Link to this heading">¶</a></h3>
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.registry.model_dir.html#strider.registry.model_dir" title="strider.registry.model_dir"><code class="xref py py-obj docutils literal notranslate"><span class="pre">model_dir</span></code></a>()</p></td>
+<td><p>Return the folder models are downloaded to.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="api/strider.registry.model_path.html#strider.registry.model_path" title="strider.registry.model_path"><code class="xref py py-obj docutils literal notranslate"><span class="pre">model_path</span></code></a>(name)</p></td>
+<td><p>Return where the released model <code class="docutils literal notranslate"><span class="pre">name</span></code> is downloaded to.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="api/strider.registry.fetch.html#strider.registry.fetch" title="strider.registry.fetch"><code class="xref py py-obj docutils literal notranslate"><span class="pre">fetch</span></code></a>([name])</p></td>
+<td><p>Return the local path of a released model package, downloading it if needed.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="glossary.html" title="Previous document">Glossary</a>
+        </li>
+        <li>
+          <a href="api/strider.load_model.html" title="Next document">load_model</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/api.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

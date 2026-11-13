@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>How STRIDER works &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=eb79866c"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" />
+    <link rel="prev" title="STRIDER" href="index.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="index.html">
+    <img class="logo" src="_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="index.html" title="previous chapter">STRIDER</a></li>
+      <li>Next: <a href="installation.html" title="next chapter">Installation</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="index.html" title="Previous document">STRIDER</a>
+        </li>
+        <li>
+          <a href="installation.html" title="Next document">Installation</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="how-strider-works">
+<h1>How STRIDER works<a class="headerlink" href="#how-strider-works" title="Link to this heading">¶</a></h1>
+<a class="reference external image-reference" href="_static/how_it_works.png"><img alt="STRIDER's steps: the prism spectra go to a coadd comparison and a brightness comparison, whose weighted sum gives the best match and its strength and, with the survey population and any prior you give, the posterior over class and redshift." src="_images/how_it_works.png" />
+</a>
+<section id="what-goes-in">
+<h2>What goes in<a class="headerlink" href="#what-goes-in" title="Link to this heading">¶</a></h2>
+<p>For each transient, its prism spectra: for each visit, the date (MJD), the wavelengths, the flux and its error.
+You can also give a redshift prior (for example a host-galaxy redshift), a redshift range, or class priors.</p>
+</section>
+<section id="two-comparisons">
+<h2>Two comparisons<a class="headerlink" href="#two-comparisons" title="Link to this heading">¶</a></h2>
+<p><strong>Coadd comparison.</strong> STRIDER combines the visits into one spectrum and compares it with what each class looks like
+at every redshift. This comparison was learned from simulated Roman spectra.</p>
+<p><strong>Brightness comparison.</strong> STRIDER sums each visit’s spectrum into four fixed bands between 7,500 and 18,000 Å, and
+compares how the four bands brighten and fade with each class, at every redshift and every peak date. The class
+light curves come from the training simulations. Each band’s steady level is removed, so light that stays the same
+from visit to visit, such as steady light from the host galaxy, does not count. Spectra from a single date add
+nothing here; it counts from the second date.</p>
+<p>The two look at the same data in two ways. The coadd comparison sees the detailed shape of the spectrum. The
+brightness comparison sees colour and how it changes with time, which tells which of the spectral matches belongs to
+the transient, and often its redshift.</p>
+</section>
+<section id="putting-them-together">
+<h2>Putting them together<a class="headerlink" href="#putting-them-together" title="Link to this heading">¶</a></h2>
+<p>STRIDER adds the two comparisons with two fixed weights. It then applies how common each class is at each redshift
+among the transients Roman is expected to find, and any prior you gave. The result is the probability of every class at every redshift.</p>
+</section>
+<section id="what-comes-out">
+<h2>What comes out<a class="headerlink" href="#what-comes-out" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>The probability of each class, and of a type Ia supernova.</p></li>
+<li><p>The redshift, its 68% range, and a second redshift when there is one.</p></li>
+<li><p>Checks: the number of redshift peaks, the source probability (the chance the spectra hold a transient at all) and
+flags.</p></li>
+<li><p>The best match: the class and redshift that fit best before the class mix is applied, how far ahead of the next
+class it is (the match gap, not a probability), its strength (high, medium or low), and warnings when a second
+redshift fits nearly as well or the two comparisons disagree.</p></li>
+</ul>
+<p><a class="reference internal" href="results.html"><span class="doc">Reading the results</span></a> explains each of these.</p>
+</section>
+<section id="what-it-does-not-do">
+<h2>What it does not do<a class="headerlink" href="#what-it-does-not-do" title="Link to this heading">¶</a></h2>
+<p>STRIDER does not estimate the phase or age of a transient, and it takes no peak date: the brightness comparison
+searches every peak date itself. It uses the prism spectra only, not Roman’s imaging.</p>
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="index.html" title="Previous document">STRIDER</a>
+        </li>
+        <li>
+          <a href="installation.html" title="Next document">Installation</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/how_it_works.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

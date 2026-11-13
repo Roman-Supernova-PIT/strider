@@ -1,0 +1,6 @@
+fetch
+=====
+
+.. currentmodule:: strider.registry
+
+.. autofunction:: fetch

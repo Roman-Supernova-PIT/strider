@@ -1,0 +1,6 @@
+read_transient
+==============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: read_transient

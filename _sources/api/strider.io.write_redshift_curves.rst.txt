@@ -1,0 +1,6 @@
+write_redshift_curves
+=====================
+
+.. currentmodule:: strider.io
+
+.. autofunction:: write_redshift_curves

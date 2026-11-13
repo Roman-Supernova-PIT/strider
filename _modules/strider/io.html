@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>strider.io &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+    <script src="../../_static/documentation_options.js?v=eb79866c"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="../../index.html">
+    <img class="logo" src="../../_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for strider.io</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Reading spectra, and writing results.</span>
+
+<span class="sd">Many transients go in a table of spectra: a parquet file with one row per visit. Its columns are ``object_id``,</span>
+<span class="sd">``mjd``, and ``wavelength``, ``flux`` and ``error``, each a list. Optional columns are ``mask``, True for pixels to</span>
+<span class="sd">ignore, and ``host_redshift`` and ``host_redshift_error``, the same on every row of an object. One transient can also</span>
+<span class="sd">be a CSV or ECSV file with one row per pixel (`read_transient`), or SMDC spectrum files, one per visit (`read_smdc`).</span>
+
+<span class="sd">Results are written in the format the file's ending gives: ``.parquet``, one row per object (`results_table`);</span>
+<span class="sd">``.csv``, the same rows without the redshift posterior; ``.json``, each object's full result. The evidence maps go</span>
+<span class="sd">in an HDF5 file (`write_evidence_maps`), and the redshift posteriors in qp's format (`write_redshift_curves`).</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">asdict</span><span class="p">,</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">importlib.resources</span><span class="w"> </span><span class="kn">import</span> <span class="n">files</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">NamedTuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.posterior</span><span class="w"> </span><span class="kn">import</span> <span class="n">central_interval</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">"Visit"</span><span class="p">,</span>
+    <span class="s2">"Transient"</span><span class="p">,</span>
+    <span class="s2">"Classification"</span><span class="p">,</span>
+    <span class="s2">"Redshift"</span><span class="p">,</span>
+    <span class="s2">"load_example"</span><span class="p">,</span>
+    <span class="s2">"read_spectra"</span><span class="p">,</span>
+    <span class="s2">"read_transient"</span><span class="p">,</span>
+    <span class="s2">"read_smdc"</span><span class="p">,</span>
+    <span class="s2">"write_spectra"</span><span class="p">,</span>
+    <span class="s2">"results_schema"</span><span class="p">,</span>
+    <span class="s2">"results_table"</span><span class="p">,</span>
+    <span class="s2">"write_results"</span><span class="p">,</span>
+    <span class="s2">"write_evidence_maps"</span><span class="p">,</span>
+    <span class="s2">"write_redshift_curves"</span><span class="p">,</span>
+<span class="p">]</span>
+
+<span class="n">EXAMPLE</span> <span class="o">=</span> <span class="n">files</span><span class="p">(</span><span class="s2">"strider"</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"data"</span> <span class="o">/</span> <span class="s2">"example.parquet"</span>
+<span class="c1"># a transient's table columns, each with the names it may have</span>
+<span class="n">COLUMNS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"mjd"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"mjd"</span><span class="p">,</span> <span class="s2">"time"</span><span class="p">),</span>
+    <span class="s2">"wavelength"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"wavelength"</span><span class="p">,),</span>
+    <span class="s2">"flux"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"flux"</span><span class="p">,),</span>
+    <span class="s2">"error"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"error"</span><span class="p">,</span> <span class="s2">"flux_err"</span><span class="p">,</span> <span class="s2">"fluxerr"</span><span class="p">),</span>
+    <span class="s2">"mask"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"mask"</span><span class="p">,),</span>
+    <span class="s2">"host_redshift"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"host_redshift"</span><span class="p">,),</span>
+    <span class="s2">"host_redshift_error"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"host_redshift_error"</span><span class="p">,),</span>
+<span class="p">}</span>
+
+
+<div class="viewcode-block" id="Visit">
+<a class="viewcode-back" href="../../api/strider.Visit.html#strider.Visit">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Visit</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""One visit: a prism spectrum of a transient at one date.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    wavelength : numpy.ndarray</span>
+<span class="sd">        Observer-frame wavelength in Å, on any grid. The visit should cover the model's wavelength range, given on</span>
+<span class="sd">        its model card; one up to 2% short of it at either end is used, and one further short is left out.</span>
+<span class="sd">    flux, error : numpy.ndarray</span>
+<span class="sd">        Flux per unit wavelength (f_λ), in any units, and its 1σ error in the same units.</span>
+<span class="sd">    mjd : float</span>
+<span class="sd">        The MJD of the visit, in days.</span>
+<span class="sd">    mask : numpy.ndarray, optional</span>
+<span class="sd">        True for pixels to ignore.</span>
+<span class="sd">    """</span>
+
+    <span class="n">wavelength</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">flux</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">error</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">mjd</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">mask</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="Transient">
+<a class="viewcode-back" href="../../api/strider.Transient.html#strider.Transient">[docs]</a>
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Transient</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""One transient: its visits, and its host galaxy's redshift if known.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    visits : list of strider.Visit</span>
+<span class="sd">        Its visits, in any order.</span>
+<span class="sd">    host_redshift, host_redshift_error : float, optional</span>
+<span class="sd">        The host galaxy's spectroscopic or photometric redshift and its 1σ error. Give both or neither.</span>
+<span class="sd">    """</span>
+
+    <span class="n">visits</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Visit</span><span class="p">]</span>
+    <span class="n">host_redshift</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">host_redshift_error</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Transient.from_table">
+<a class="viewcode-back" href="../../api/strider.Transient.html#strider.Transient.from_table">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">from_table</span><span class="p">(</span><span class="bp">cls</span><span class="p">,</span> <span class="n">table</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">"Transient"</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Make a transient from a table with one row per pixel.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        table : pandas.DataFrame, astropy.table.Table or dict of array_like</span>
+<span class="sd">            The columns ``mjd``, ``wavelength`` in Å, ``flux`` and ``error``. Optional columns are ``mask``, True for</span>
+<span class="sd">            pixels to ignore, and ``host_redshift`` and ``host_redshift_error``, the same on every row. The column</span>
+<span class="sd">            ``time`` can stand for ``mjd``, and ``flux_err`` or ``fluxerr`` for ``error``; case does not matter.</span>
+<span class="sd">            The rows with one MJD are one visit. Astropy columns with units are converted: wavelength to Å, flux and</span>
+<span class="sd">            error to f_λ.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        strider.Transient</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="s2">"keys"</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">"give a table with one row per pixel (a pandas DataFrame, an astropy Table or a dict of "</span>
+                <span class="s2">"columns), or the wavelength, flux, error and mjd of each visit"</span>
+            <span class="p">)</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span> <span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">keys</span><span class="p">()}</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">key</span><span class="p">:</span> <span class="nb">next</span><span class="p">((</span><span class="n">names</span><span class="p">[</span><span class="n">alias</span><span class="p">]</span> <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">aliases</span> <span class="k">if</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">names</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">aliases</span> <span class="ow">in</span> <span class="n">COLUMNS</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">}</span>
+        <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"mjd"</span><span class="p">,</span> <span class="s2">"wavelength"</span><span class="p">,</span> <span class="s2">"flux"</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">)</span> <span class="k">if</span> <span class="n">found</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"the table has no </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2"> column; its columns are "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span><span class="w"> </span><span class="n">table</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span><span class="si">}</span><span class="s2">. Give one row per pixel, with the columns mjd, "</span>
+                <span class="s2">"wavelength, flux and error, and optionally mask"</span>
+            <span class="p">)</span>
+        <span class="n">wavelength</span><span class="p">,</span> <span class="n">flux</span><span class="p">,</span> <span class="n">error</span> <span class="o">=</span> <span class="n">_in_units</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">found</span><span class="p">[</span><span class="n">key</span><span class="p">]]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"wavelength"</span><span class="p">,</span> <span class="s2">"flux"</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">)))</span>
+        <span class="n">mjd</span> <span class="o">=</span> <span class="n">_floats</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">found</span><span class="p">[</span><span class="s2">"mjd"</span><span class="p">]])</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">found</span><span class="p">[</span><span class="s2">"mask"</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">found</span><span class="p">[</span><span class="s2">"mask"</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">len</span><span class="p">(</span><span class="n">mjd</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"the table has no rows"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">mjd</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"a row has no finite mjd; give every row the MJD of its visit"</span><span class="p">)</span>
+        <span class="n">dates</span><span class="p">,</span> <span class="n">first</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">mjd</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">visits</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">date</span> <span class="ow">in</span> <span class="n">dates</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">first</span><span class="p">)]:</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="n">mjd</span> <span class="o">==</span> <span class="n">date</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">wavelength</span><span class="p">[</span><span class="n">rows</span><span class="p">]))</span> <span class="o">&lt;</span> <span class="n">rows</span><span class="o">.</span><span class="n">sum</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"the rows at MJD </span><span class="si">{</span><span class="n">date</span><span class="si">}</span><span class="s2"> repeat a wavelength; give each visit its own MJD"</span><span class="p">)</span>
+            <span class="n">visits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">Visit</span><span class="p">(</span><span class="n">wavelength</span><span class="p">[</span><span class="n">rows</span><span class="p">],</span> <span class="n">flux</span><span class="p">[</span><span class="n">rows</span><span class="p">],</span> <span class="n">error</span><span class="p">[</span><span class="n">rows</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">date</span><span class="p">),</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">mask</span><span class="p">[</span><span class="n">rows</span><span class="p">])</span>
+            <span class="p">)</span>
+        <span class="n">host</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"host_redshift"</span><span class="p">,</span> <span class="s2">"host_redshift_error"</span><span class="p">):</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">]</span> <span class="k">if</span> <span class="n">found</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">_floats</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">found</span><span class="p">[</span><span class="n">key</span><span class="p">]]))</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"the table gives </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span><span class="si">}</span><span class="s2"> values of </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">; give the same on every row"</span><span class="p">)</span>
+            <span class="n">host</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span><span class="n">visits</span><span class="p">,</span> <span class="o">*</span><span class="n">host</span><span class="p">)</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_floats</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Float64 values, NaN where a masked column has no value."""</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">filled</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_in_units</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">flux</span><span class="p">,</span> <span class="n">error</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Wavelength in Å, and flux and error as f_λ in erg s⁻¹ cm⁻² Å⁻¹ where astropy units are given."""</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">wavelength</span><span class="p">,</span> <span class="s2">"unit"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">astropy</span><span class="w"> </span><span class="kn">import</span> <span class="n">units</span>
+
+        <span class="n">wavelength</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">_floats</span><span class="p">(</span><span class="n">wavelength</span><span class="p">),</span> <span class="n">wavelength</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">AA</span><span class="p">,</span> <span class="n">units</span><span class="o">.</span><span class="n">spectral</span><span class="p">())</span>
+    <span class="n">wavelength</span> <span class="o">=</span> <span class="n">_floats</span><span class="p">(</span><span class="n">wavelength</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">flux</span><span class="p">,</span> <span class="s2">"unit"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">wavelength</span><span class="p">,</span> <span class="n">_floats</span><span class="p">(</span><span class="n">flux</span><span class="p">),</span> <span class="n">_floats</span><span class="p">(</span><span class="n">error</span><span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">astropy</span><span class="w"> </span><span class="kn">import</span> <span class="n">units</span>
+
+    <span class="n">flam</span><span class="p">,</span> <span class="n">density</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">erg</span> <span class="o">/</span> <span class="n">units</span><span class="o">.</span><span class="n">s</span> <span class="o">/</span> <span class="n">units</span><span class="o">.</span><span class="n">cm</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">units</span><span class="o">.</span><span class="n">AA</span><span class="p">,</span> <span class="n">units</span><span class="o">.</span><span class="n">spectral_density</span><span class="p">(</span><span class="n">wavelength</span> <span class="o">*</span> <span class="n">units</span><span class="o">.</span><span class="n">AA</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">wavelength</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span>
+        <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">_floats</span><span class="p">(</span><span class="n">values</span><span class="p">),</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="s2">"unit"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="n">flux</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">flam</span><span class="p">,</span> <span class="n">density</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">values</span> <span class="ow">in</span> <span class="p">(</span><span class="n">flux</span><span class="p">,</span> <span class="n">error</span><span class="p">)</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_wrapped</span><span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">parts</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">79</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""A card line of ``parts`` joined by " · ", continued on indented lines where it would pass ``width``."""</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s2">&lt;10</span><span class="si">}{</span><span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="mi">3</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">part</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">width</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">" "</span> <span class="o">*</span> <span class="mi">10</span> <span class="o">+</span> <span class="n">part</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" · </span><span class="si">{</span><span class="n">part</span><span class="si">}</span><span class="s2">"</span>
+    <span class="k">return</span> <span class="n">lines</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_percent</span><span class="p">(</span><span class="n">probability</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s2">"&lt;1%"</span> <span class="k">if</span> <span class="n">probability</span> <span class="o">&lt;</span> <span class="mf">0.005</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="mi">100</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="n">probability</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2">%"</span>
+
+
+<div class="viewcode-block" id="Redshift">
+<a class="viewcode-back" href="../../api/strider.io.Redshift.html#strider.Redshift">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Redshift</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The redshift of a transient if it is of one class (`Classification.redshift_given`): its main peak, its</span>
+<span class="sd">    central 68% and 95% intervals and its posterior."""</span>
+
+    <span class="n">redshift</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">redshift_68</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">redshift_95</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">redshift_posterior</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span></div>
+
+
+
+<div class="viewcode-block" id="Classification">
+<a class="viewcode-back" href="../../api/strider.Classification.html#strider.Classification">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">Classification</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The result for one transient. :doc:`/results` explains each field.</span>
+
+<span class="sd">    ``print(result)`` prints its card (`card`), and ``result.plot()`` draws its figure.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model, fingerprint : str</span>
+<span class="sd">        The model's name, and a code that identifies it: its network, brightness term, priors and settings.</span>
+<span class="sd">    class_probabilities : dict of str to float</span>
+<span class="sd">        The probability of each class.</span>
+<span class="sd">    equal_prior_probabilities : dict of str to float</span>
+<span class="sd">        The class probabilities if every class were equally common.</span>
+<span class="sd">    p_ia : float</span>
+<span class="sd">        The probability of a type Ia supernova.</span>
+<span class="sd">    redshift : float</span>
+<span class="sd">        The redshift at the main peak of ``redshift_posterior``: where the most probability lies within 0.1.</span>
+<span class="sd">    redshift_probability : float</span>
+<span class="sd">        The probability that the true redshift is within 0.1 of ``redshift``.</span>
+<span class="sd">    redshift_peaks : list of tuple of float</span>
+<span class="sd">        Each distinct peak of ``redshift_posterior`` as (redshift, probability within 0.1 of it), the main one</span>
+<span class="sd">        first.</span>
+<span class="sd">    redshift_68, redshift_95 : tuple of float</span>
+<span class="sd">        The central 68% and 95% intervals of the redshift.</span>
+<span class="sd">    redshift_grid, redshift_cell_widths : numpy.ndarray</span>
+<span class="sd">        The centre and width of each redshift cell.</span>
+<span class="sd">    redshift_posterior : numpy.ndarray</span>
+<span class="sd">        The probability that the redshift is in each cell. It sums to 1. Divide by the cell widths to get a density.</span>
+<span class="sd">    class_redshift_posterior : numpy.ndarray</span>
+<span class="sd">        (classes, cells) the redshift posterior if the transient is of each class, in the order of</span>
+<span class="sd">        ``class_probabilities``; NaN for a class with no posterior at the redshifts allowed. `redshift_given`</span>
+<span class="sd">        summarises one.</span>
+<span class="sd">    class_redshifts : dict of str to float</span>
+<span class="sd">        The redshift at the main peak of each class's redshift posterior, NaN for a class with no posterior at the</span>
+<span class="sd">        redshifts allowed.</span>
+<span class="sd">    log_evidence : numpy.ndarray</span>
+<span class="sd">        (classes, cells) the evidence map: the log evidence for each class and redshift cell, before any prior. It is</span>
+<span class="sd">        -inf where the model had no training transients. Adding the log of a prior probability of each cell and</span>
+<span class="sd">        normalising gives the posterior over the cells the model was trained on.</span>
+<span class="sd">    source_probability : float or None</span>
+<span class="sd">        The probability that the visits hold a transient at all. None if the model has no source probability.</span>
+<span class="sd">    untrained_share : float</span>
+<span class="sd">        The probability that the transient is of a subtype the model never saw at that redshift, within a class it did</span>
+<span class="sd">        see there. Always 0 for a model with one subtype per class.</span>
+<span class="sd">    trained_classes : list of str</span>
+<span class="sd">        The classes the model had training transients of at the redshift shown.</span>
+<span class="sd">    flags : dict of str to bool</span>
+<span class="sd">        ``weak_source``, ``several_redshift_peaks``, ``untrained_subtypes``, ``few_classes_trained`` and</span>
+<span class="sd">        ``brightness_failed`` (the brightness term could not be computed, so the result uses the spectra alone).</span>
+<span class="sd">        ``weak_source`` is None if the model has no source probability.</span>
+<span class="sd">    best_match : tuple of str and float</span>
+<span class="sd">        The class and redshift that match the data best, before any prior.</span>
+<span class="sd">    next_best_class : str</span>
+<span class="sd">        The best other class, at its own best redshift.</span>
+<span class="sd">    match_gap : float</span>
+<span class="sd">        How far the best match is ahead of the next-best class, in log units; not a probability.</span>
+<span class="sd">    match_strength : str</span>
+<span class="sd">        ``high``, ``medium`` or ``low``, from the match gap at levels fixed with the model.</span>
+<span class="sd">    warnings : list of str</span>
+<span class="sd">        Why the best match may be less clear than its strength says.</span>
+<span class="sd">    visits_used : list of int</span>
+<span class="sd">        The position in the input of each visit used, counting from 0, in time order.</span>
+<span class="sd">    days_observed : float</span>
+<span class="sd">        The observer-frame days from the first visit used to the last.</span>
+<span class="sd">    signal_to_noise : float</span>
+<span class="sd">        The median S/N per pixel of the visits used, combined on their own pixels.</span>
+<span class="sd">    dropped_visits : dict of int to str</span>
+<span class="sd">        The reason each visit was left out, by its position in the input.</span>
+<span class="sd">    error_scale : float</span>
+<span class="sd">        The factor the errors were multiplied by before classifying (``error_scale`` of `strider.Model.classify`,</span>
+<span class="sd">        measured if it was ``"auto"``); 1 if they were used as given.</span>
+<span class="sd">    redshift_range : tuple of float or None</span>
+<span class="sd">        The redshift range the result was restricted to (``redshift_range`` of `strider.Model.classify`), or None.</span>
+<span class="sd">        The redshifts and intervals then lie inside it.</span>
+<span class="sd">    """</span>
+
+    <span class="n">model</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">fingerprint</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">class_probabilities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">equal_prior_probabilities</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">p_ia</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">redshift</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">redshift_probability</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">redshift_peaks</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span>
+    <span class="n">redshift_68</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">redshift_95</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">redshift_grid</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">redshift_cell_widths</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">redshift_posterior</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">class_redshift_posterior</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">class_redshifts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">log_evidence</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">source_probability</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">untrained_share</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">trained_classes</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">flags</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">best_match</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span>
+    <span class="n">next_best_class</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">match_gap</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">match_strength</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">warnings</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">visits_used</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>
+    <span class="n">days_observed</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">signal_to_noise</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">dropped_visits</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">error_scale</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span>
+    <span class="n">redshift_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">card</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__dict__</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s2">"_source"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># the model and the visits, for the figure only</span>
+        <span class="k">return</span> <span class="n">state</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="n">top</span><span class="p">,</span> <span class="n">probability</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ranked</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">"&lt;Classification </span><span class="si">{</span><span class="n">top</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">_percent</span><span class="p">(</span><span class="n">probability</span><span class="p">)</span><span class="si">}</span><span class="s2">, z </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">redshift</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">&gt;"</span>
+
+<div class="viewcode-block" id="Classification.card">
+<a class="viewcode-back" href="../../api/strider.Classification.html#strider.Classification.card">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">card</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the result as a short card: the most likely classes, the redshift and its 68% range, the match</span>
+<span class="sd">        strength and any warnings, the data, and any checks that need attention. ``name`` heads it."""</span>
+        <span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshift_68</span>
+        <span class="n">digits</span> <span class="o">=</span> <span class="mi">3</span> <span class="k">if</span> <span class="n">high</span> <span class="o">-</span> <span class="n">low</span> <span class="o">&lt;</span> <span class="mf">0.05</span> <span class="k">else</span> <span class="mi">2</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"STRIDER · </span><span class="si">{</span><span class="n">name</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'transient'</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">room</span> <span class="o">=</span> <span class="mi">77</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+        <span class="n">head</span> <span class="o">=</span> <span class="n">head</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">head</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">room</span> <span class="k">else</span> <span class="n">head</span><span class="p">[:</span> <span class="n">room</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"…"</span>
+        <span class="n">ranked</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ranked</span><span class="p">()[:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">classes</span> <span class="o">=</span> <span class="s2">" · "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">_percent</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">n</span><span class="p">,</span> <span class="p">(</span><span class="n">label</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ranked</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">p</span> <span class="o">&gt;=</span> <span class="mf">0.01</span><span class="p">)</span>
+        <span class="n">visits</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visits_used</span><span class="p">)</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">visits</span><span class="si">}</span><span class="s2"> visit</span><span class="si">{</span><span class="s1">'s'</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="n">visits</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="s1">''</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="n">visits</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" over </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">days_observed</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> days"</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">days_observed</span> <span class="o">&gt;=</span> <span class="mf">1.0</span> <span class="k">else</span> <span class="s2">" on one night"</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signal_to_noise</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" · S/N </span><span class="si">{</span><span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">signal_to_noise</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0</span><span class="p">)</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">error_scale</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">" · errors × </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">error_scale</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
+        <span class="n">checks</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">"weak_source"</span><span class="p">]:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"weak source (</span><span class="si">{</span><span class="n">_percent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">source_probability</span><span class="p">)</span><span class="si">}</span><span class="s2">)"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">"few_classes_trained"</span><span class="p">]:</span>
+            <span class="n">trained</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trained_classes</span><span class="p">)</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"trained here: </span><span class="si">{</span><span class="n">trained</span><span class="si">}</span><span class="s2"> only"</span> <span class="k">if</span> <span class="n">trained</span> <span class="k">else</span> <span class="s2">"no class trained here"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">"untrained_subtypes"</span><span class="p">]:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"untrained subtypes </span><span class="si">{</span><span class="n">_percent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">untrained_share</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s2">"brightness_failed"</span><span class="p">]:</span>
+            <span class="n">checks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">"brightness failed, spectra alone"</span><span class="p">)</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">head</span><span class="o">.</span><span class="n">ljust</span><span class="p">(</span><span class="mi">79</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">))</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Class'</span><span class="si">:</span><span class="s2">&lt;10</span><span class="si">}{</span><span class="n">classes</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Redshift'</span><span class="si">:</span><span class="s2">&lt;10</span><span class="si">}{</span><span class="bp">self</span><span class="o">.</span><span class="n">redshift</span><span class="si">:</span><span class="s2">.</span><span class="si">{</span><span class="n">digits</span><span class="si">}</span><span class="s2">f</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">_percent</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">redshift_probability</span><span class="p">)</span><span class="si">}</span><span class="s2"> within 0.1)"</span>
+            <span class="sa">f</span><span class="s2">" · 68% range </span><span class="si">{</span><span class="n">low</span><span class="si">:</span><span class="s2">.</span><span class="si">{</span><span class="n">digits</span><span class="si">}</span><span class="s2">f</span><span class="si">}</span><span class="s2">–</span><span class="si">{</span><span class="n">high</span><span class="si">:</span><span class="s2">.</span><span class="si">{</span><span class="n">digits</span><span class="si">}</span><span class="s2">f</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="o">*</span><span class="n">_wrapped</span><span class="p">(</span><span class="s2">"Match"</span><span class="p">,</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">match_strength</span><span class="si">}</span><span class="s2"> strength"</span><span class="p">,</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">warnings</span><span class="p">]),</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="s1">'Data'</span><span class="si">:</span><span class="s2">&lt;10</span><span class="si">}{</span><span class="n">data</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">checks</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">+=</span> <span class="n">_wrapped</span><span class="p">(</span><span class="s2">"Checks"</span><span class="p">,</span> <span class="n">checks</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Classification.plot">
+<a class="viewcode-back" href="../../api/strider.Classification.html#strider.Classification.plot">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">plot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Draw the result's figure: the spectra and their combination, the best-matching references of the two</span>
+<span class="sd">        most likely classes, each visit's brightness in the four bands against SN Ia's light curves fitted to it,</span>
+<span class="sd">        every class at every redshift, and the class probabilities and the redshift posterior of SN Ia and of the</span>
+<span class="sd">        other classes. Needs matplotlib (``pip install "roman-snpit-strider[plot]"``).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        path : str or path-like, optional</span>
+<span class="sd">            A file to save the figure to, such as ``result.png`` or ``result.pdf``.</span>
+<span class="sd">        name : str, optional</span>
+<span class="sd">            A title for the figure.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        matplotlib.figure.Figure</span>
+<span class="sd">        """</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.plot</span><span class="w"> </span><span class="kn">import</span> <span class="n">figure</span>
+
+        <span class="n">drawn</span> <span class="o">=</span> <span class="n">figure</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">drawn</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span> <span class="n">bbox_inches</span><span class="o">=</span><span class="s2">"tight"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">drawn</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ranked</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">class_probabilities</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">top_class</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""The most likely class."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ranked</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">top_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""The probability of the most likely class."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ranked</span><span class="p">()[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">second_class</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""The second most likely class."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ranked</span><span class="p">()[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">second_probability</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""The probability of the second most likely class."""</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ranked</span><span class="p">()[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+<div class="viewcode-block" id="Classification.redshift_given">
+<a class="viewcode-back" href="../../api/strider.Classification.html#strider.Classification.redshift_given">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">redshift_given</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Redshift</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the redshift if the transient is of class ``name``: its main peak, its central 68% and 95%</span>
+<span class="sd">        intervals, and its posterior. They are NaN if the class has no probability at any redshift."""</span>
+        <span class="n">classes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">class_probabilities</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">classes</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"unknown class </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; the classes are </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">classes</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">posterior</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">class_redshift_posterior</span><span class="p">[</span><span class="n">classes</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">posterior</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">():</span>
+            <span class="k">return</span> <span class="n">Redshift</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">),</span> <span class="n">posterior</span><span class="p">)</span>
+        <span class="n">grid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshift_grid</span>
+        <span class="k">return</span> <span class="n">Redshift</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">class_redshifts</span><span class="p">[</span><span class="n">name</span><span class="p">],</span>
+            <span class="n">central_interval</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">posterior</span><span class="p">,</span> <span class="mf">0.68</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshift_range</span><span class="p">),</span>
+            <span class="n">central_interval</span><span class="p">(</span><span class="n">grid</span><span class="p">,</span> <span class="n">posterior</span><span class="p">,</span> <span class="mf">0.95</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshift_range</span><span class="p">),</span>
+            <span class="n">posterior</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Classification.to_dict">
+<a class="viewcode-back" href="../../api/strider.Classification.html#strider.Classification.to_dict">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the result as a dictionary that `json.dumps` can write, without the evidence map."""</span>
+        <span class="n">ia</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshift_given</span><span class="p">(</span><span class="s2">"Ia"</span><span class="p">)</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"top_class"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">top_class</span><span class="p">,</span>
+            <span class="s2">"top_probability"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">top_probability</span><span class="p">,</span>
+            <span class="s2">"second_class"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">second_class</span><span class="p">,</span>
+            <span class="s2">"second_probability"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">second_probability</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="n">asdict</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">del</span> <span class="n">found</span><span class="p">[</span><span class="s2">"log_evidence"</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">_json_safe</span><span class="p">(</span>
+            <span class="n">summary</span>
+            <span class="o">|</span> <span class="n">found</span>
+            <span class="o">|</span> <span class="p">{</span>
+                <span class="s2">"redshift_peaks"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"redshift"</span><span class="p">:</span> <span class="n">z</span><span class="p">,</span> <span class="s2">"probability"</span><span class="p">:</span> <span class="n">p</span><span class="p">}</span> <span class="k">for</span> <span class="n">z</span><span class="p">,</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshift_peaks</span><span class="p">],</span>
+                <span class="s2">"best_match"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"class"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_match</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="s2">"redshift"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">best_match</span><span class="p">[</span><span class="mi">1</span><span class="p">]},</span>
+                <span class="s2">"redshift_ia"</span><span class="p">:</span> <span class="n">ia</span><span class="o">.</span><span class="n">redshift</span><span class="p">,</span>
+                <span class="s2">"redshift_ia_68"</span><span class="p">:</span> <span class="n">ia</span><span class="o">.</span><span class="n">redshift_68</span><span class="p">,</span>
+                <span class="s2">"redshift_ia_95"</span><span class="p">:</span> <span class="n">ia</span><span class="o">.</span><span class="n">redshift_95</span><span class="p">,</span>
+                <span class="s2">"redshift_grid"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">redshift_grid</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+                <span class="s2">"redshift_cell_widths"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">redshift_cell_widths</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+                <span class="s2">"redshift_posterior"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">redshift_posterior</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+                <span class="s2">"class_redshift_posterior"</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="n">name</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+                    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">class_probabilities</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">class_redshift_posterior</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="p">},</span>
+                <span class="s2">"dropped_visits"</span><span class="p">:</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">index</span><span class="p">):</span> <span class="n">reason</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">reason</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dropped_visits</span><span class="o">.</span><span class="n">items</span><span class="p">()},</span>
+            <span class="p">}</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_json_safe</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""``value`` with NaN numbers replaced by None, which JSON can hold."""</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">_json_safe</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">_json_safe</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">))</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="n">REQUIRED</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"object_id"</span><span class="p">,</span> <span class="s2">"mjd"</span><span class="p">,</span> <span class="s2">"wavelength"</span><span class="p">,</span> <span class="s2">"flux"</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">)</span>
+<span class="n">OPTIONAL</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"mask"</span><span class="p">,</span> <span class="s2">"host_redshift"</span><span class="p">,</span> <span class="s2">"host_redshift_error"</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="load_example">
+<a class="viewcode-back" href="../../api/strider.load_example.html#strider.load_example">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_example</span><span class="p">(</span><span class="n">batch</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">"Transient | dict[str, Transient]"</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the bundled example: a simulated SN Ia at redshift 0.87 with eleven visits. With ``batch=True``, return</span>
+<span class="sd">    three simulated transients by name."""</span>
+    <span class="n">objects</span> <span class="o">=</span> <span class="n">read_spectra</span><span class="p">(</span><span class="n">EXAMPLE</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">objects</span> <span class="k">if</span> <span class="n">batch</span> <span class="k">else</span> <span class="n">objects</span><span class="p">[</span><span class="s2">"sn_ia"</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="read_spectra">
+<a class="viewcode-back" href="../../api/strider.io.read_spectra.html#strider.read_spectra">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_spectra</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Transient</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Read a table of spectra. Returns each transient by object id, with its visits in table order.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If a column is missing, a visit has no MJD, or an object has different host redshifts on different rows.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+    <span class="n">source</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="n">present</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">source</span><span class="o">.</span><span class="n">schema_arrow</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
+    <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">REQUIRED</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">present</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> is missing the column(s) </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span><span class="si">}</span><span class="s2">. A table of spectra needs one row per "</span>
+            <span class="sa">f</span><span class="s2">"visit, with the columns </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">REQUIRED</span><span class="p">)</span><span class="si">}</span><span class="s2">, and optionally </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">OPTIONAL</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="o">*</span><span class="n">REQUIRED</span><span class="p">,</span> <span class="o">*</span><span class="p">(</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">OPTIONAL</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">present</span><span class="p">)]</span>
+    <span class="n">objects</span><span class="p">,</span> <span class="n">hosts</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">iter_batches</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="n">columns</span><span class="p">):</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s2">"object_id"</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()]</span>
+        <span class="n">mjd</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s2">"mjd"</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">zero_copy_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="n">lists</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">_rows</span><span class="p">(</span><span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">name</span><span class="p">))</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"wavelength"</span><span class="p">,</span> <span class="s2">"flux"</span><span class="p">,</span> <span class="s2">"error"</span><span class="p">,</span> <span class="s2">"mask"</span><span class="p">)</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">}</span>
+        <span class="n">host</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">batch</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">())</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">zero_copy_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">columns</span>  <span class="c1"># all null: NaN</span>
+            <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"host_redshift"</span><span class="p">,</span> <span class="s2">"host_redshift_error"</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">keys</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">mjd</span><span class="p">[</span><span class="n">row</span><span class="p">]):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: a visit of object </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> has no finite mjd; give every row its MJD"</span><span class="p">)</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">lists</span><span class="p">[</span><span class="s2">"mask"</span><span class="p">][</span><span class="n">row</span><span class="p">]</span> <span class="k">if</span> <span class="s2">"mask"</span> <span class="ow">in</span> <span class="n">lists</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">visit</span> <span class="o">=</span> <span class="n">Visit</span><span class="p">(</span>
+                <span class="n">lists</span><span class="p">[</span><span class="s2">"wavelength"</span><span class="p">][</span><span class="n">row</span><span class="p">],</span>
+                <span class="n">lists</span><span class="p">[</span><span class="s2">"flux"</span><span class="p">][</span><span class="n">row</span><span class="p">],</span>
+                <span class="n">lists</span><span class="p">[</span><span class="s2">"error"</span><span class="p">][</span><span class="n">row</span><span class="p">],</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">mjd</span><span class="p">[</span><span class="n">row</span><span class="p">]),</span>
+                <span class="kc">None</span> <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">bool</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="n">objects</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">visit</span><span class="p">)</span>
+            <span class="n">given</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="kc">None</span> <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">else</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="p">(</span><span class="n">host</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">row</span><span class="p">],</span> <span class="n">host</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">row</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="n">hosts</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">given</span><span class="p">)</span> <span class="o">!=</span> <span class="n">given</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: object </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> has different host redshifts on different rows; give the same "</span>
+                    <span class="s2">"host_redshift and host_redshift_error on every row of an object"</span>
+                <span class="p">)</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">Transient</span><span class="p">(</span><span class="n">visits</span><span class="p">,</span> <span class="o">*</span><span class="n">hosts</span><span class="p">[</span><span class="n">key</span><span class="p">])</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">visits</span> <span class="ow">in</span> <span class="n">objects</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rows</span><span class="p">(</span><span class="n">column</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Each row of a parquet list column as a numpy array (None where null), without Python lists."""</span>
+    <span class="k">if</span> <span class="n">column</span><span class="o">.</span><span class="n">null_count</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">column</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="s2">"list_size"</span><span class="p">):</span>  <span class="c1"># a fixed-size list column</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+        <span class="n">column</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">cast</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">list_</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">type</span><span class="o">.</span><span class="n">value_type</span><span class="p">))</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">zero_copy_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">offsets</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">offsets</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+    <span class="n">nulls</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">is_null</span><span class="p">()</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">zero_copy_only</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="kc">None</span> <span class="k">if</span> <span class="n">null</span> <span class="k">else</span> <span class="n">values</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">stop</span><span class="p">]</span> <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">null</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">offsets</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">offsets</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">nulls</span><span class="p">)]</span>
+
+
+<div class="viewcode-block" id="read_transient">
+<a class="viewcode-back" href="../../api/strider.io.read_transient.html#strider.read_transient">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_transient</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Transient</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Read one transient from a CSV or ECSV file with one row per pixel. `Transient.from_table` gives the columns.</span>
+<span class="sd">    Reading ECSV needs astropy."""</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">".ecsv"</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">astropy.table</span><span class="w"> </span><span class="kn">import</span> <span class="n">Table</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">"reading ECSV files needs astropy: pip install astropy"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="k">return</span> <span class="n">Transient</span><span class="o">.</span><span class="n">from_table</span><span class="p">(</span><span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"ascii.ecsv"</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">path</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s2">".csv"</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.csv</span>
+
+        <span class="n">table</span> <span class="o">=</span> <span class="n">pyarrow</span><span class="o">.</span><span class="n">csv</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Transient</span><span class="o">.</span><span class="n">from_table</span><span class="p">({</span><span class="n">name</span><span class="p">:</span> <span class="n">table</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">column_names</span><span class="p">})</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: read_transient reads a .csv or .ecsv file; for many transients, use a parquet table "</span>
+        <span class="s2">"of spectra (read_spectra)"</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="read_smdc">
+<a class="viewcode-back" href="../../api/strider.io.read_smdc.html#strider.read_smdc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_smdc</span><span class="p">(</span>
+    <span class="n">paths</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">],</span>
+    <span class="n">mjd</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+    <span class="n">host_redshift</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">host_redshift_error</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Transient</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Read one transient from SMDC spectrum files, one file per visit. Reading them needs h5py.</span>
+
+<span class="sd">    Each file holds a visit's wavelength in Å, flux and 1σ error as ``combined/data/lamb``, ``flam`` and ``func``.</span>
+<span class="sd">    The files do not give the date, so give the MJD of each.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">"reading SMDC spectrum files needs h5py: pip install h5py"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="n">paths</span><span class="p">,</span> <span class="n">mjd</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">paths</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">mjd</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mjd</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"give one MJD for each file: there are </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">paths</span><span class="p">)</span><span class="si">}</span><span class="s2"> files and </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mjd</span><span class="p">)</span><span class="si">}</span><span class="s2"> MJDs"</span><span class="p">)</span>
+    <span class="n">visits</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">date</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">mjd</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">spectrum</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"combined/data/lamb"</span><span class="p">,</span> <span class="s2">"combined/data/flam"</span><span class="p">,</span> <span class="s2">"combined/data/func"</span><span class="p">)</span>
+            <span class="n">absent</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">spectrum</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">absent</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> has no </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">absent</span><span class="p">)</span><span class="si">}</span><span class="s2">; an SMDC spectrum file holds </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">names</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">visits</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Visit</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">spectrum</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">date</span><span class="p">)))</span>
+    <span class="k">return</span> <span class="n">Transient</span><span class="p">(</span><span class="n">visits</span><span class="p">,</span> <span class="n">host_redshift</span><span class="p">,</span> <span class="n">host_redshift_error</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="write_spectra">
+<a class="viewcode-back" href="../../api/strider.io.write_spectra.html#strider.write_spectra">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_spectra</span><span class="p">(</span><span class="n">objects</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Transient</span><span class="p">],</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Write transients, by object id, to a table of spectra that `read_spectra` can read."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">{</span>
+            <span class="s2">"object_id"</span><span class="p">:</span> <span class="n">key</span><span class="p">,</span>
+            <span class="s2">"mjd"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">visit</span><span class="o">.</span><span class="n">mjd</span><span class="p">),</span>
+            <span class="s2">"wavelength"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">visit</span><span class="o">.</span><span class="n">wavelength</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+            <span class="s2">"flux"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">visit</span><span class="o">.</span><span class="n">flux</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+            <span class="s2">"error"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">visit</span><span class="o">.</span><span class="n">error</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+            <span class="s2">"mask"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">visit</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">visit</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+            <span class="s2">"host_redshift"</span><span class="p">:</span> <span class="n">transient</span><span class="o">.</span><span class="n">host_redshift</span><span class="p">,</span>
+            <span class="s2">"host_redshift_error"</span><span class="p">:</span> <span class="n">transient</span><span class="o">.</span><span class="n">host_redshift_error</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">transient</span> <span class="ow">in</span> <span class="n">objects</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">visit</span> <span class="ow">in</span> <span class="n">transient</span><span class="o">.</span><span class="n">visits</span>
+    <span class="p">]</span>
+    <span class="c1"># from_pylist takes its columns from the first row, so every row carries every key</span>
+    <span class="n">pq</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_pylist</span><span class="p">(</span><span class="n">rows</span><span class="p">),</span> <span class="n">path</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="results_schema">
+<a class="viewcode-back" href="../../api/strider.io.results_schema.html#strider.results_schema">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">results_schema</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">summary</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return the pyarrow schema of the results table of ``model``, a `strider.Model`. Its metadata holds the</span>
+<span class="sd">    redshift cells' centres and widths, as JSON under ``redshift_grid`` and ``redshift_cell_widths``. A ``summary``</span>
+<span class="sd">    table, as CSV holds it, has no redshift posterior, and gives the visits as text."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+    <span class="n">numbers</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"p_ia"</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span>
+        <span class="sa">f</span><span class="s2">"redshift</span><span class="si">{</span><span class="n">kind</span><span class="si">}{</span><span class="n">end</span><span class="si">}</span><span class="s2">"</span>
+        <span class="k">for</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="s2">"_ia"</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">end</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="s2">"_68_lower"</span><span class="p">,</span> <span class="s2">"_68_upper"</span><span class="p">,</span> <span class="s2">"_95_lower"</span><span class="p">,</span> <span class="s2">"_95_upper"</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">numbers</span> <span class="o">+=</span> <span class="p">[</span>
+        <span class="s2">"redshift_probability"</span><span class="p">,</span>
+        <span class="s2">"second_peak_redshift"</span><span class="p">,</span>
+        <span class="s2">"second_peak_probability"</span><span class="p">,</span>
+        <span class="s2">"top_class_redshift"</span><span class="p">,</span>
+        <span class="s2">"second_class_redshift"</span><span class="p">,</span>
+        <span class="s2">"source_probability"</span><span class="p">,</span>
+        <span class="s2">"untrained_share"</span><span class="p">,</span>
+        <span class="s2">"signal_to_noise"</span><span class="p">,</span>
+        <span class="s2">"days_observed"</span><span class="p">,</span>
+    <span class="p">]</span>
+    <span class="n">fields</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"object_id"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"top_class"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"top_probability"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"second_class"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"second_probability"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">()),</span>
+    <span class="p">]</span>
+    <span class="n">fields</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">name</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">())</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">numbers</span><span class="p">]</span>
+    <span class="n">fields</span> <span class="o">+=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">bool_</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span>
+            <span class="s2">"several_redshift_peaks"</span><span class="p">,</span>
+            <span class="s2">"weak_source"</span><span class="p">,</span>
+            <span class="s2">"untrained_subtypes"</span><span class="p">,</span>
+            <span class="s2">"few_classes_trained"</span><span class="p">,</span>
+            <span class="s2">"brightness_failed"</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()</span> <span class="k">if</span> <span class="n">summary</span> <span class="k">else</span> <span class="n">pa</span><span class="o">.</span><span class="n">list_</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">())</span>
+    <span class="n">fields</span> <span class="o">+=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="s2">"best_match_class"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"best_match_redshift"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"next_best_class"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"match_gap"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"match_strength"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()),</span>
+        <span class="p">(</span><span class="s2">"warnings"</span><span class="p">,</span> <span class="n">text</span><span class="p">),</span>
+    <span class="p">]</span>
+    <span class="n">fields</span> <span class="o">+=</span> <span class="p">[(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">())</span> <span class="k">for</span> <span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"probability"</span><span class="p">,</span> <span class="s2">"equal_prior"</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">classes</span><span class="p">]</span>
+    <span class="n">visits</span> <span class="o">=</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">()</span> <span class="k">if</span> <span class="n">summary</span> <span class="k">else</span> <span class="n">pa</span><span class="o">.</span><span class="n">list_</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">int64</span><span class="p">())</span>
+    <span class="n">fields</span> <span class="o">+=</span> <span class="p">[(</span><span class="s2">"visits_used"</span><span class="p">,</span> <span class="n">visits</span><span class="p">),</span> <span class="p">(</span><span class="s2">"dropped_visits"</span><span class="p">,</span> <span class="n">text</span><span class="p">),</span> <span class="p">(</span><span class="s2">"failure"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">())]</span>
+    <span class="n">fields</span> <span class="o">+=</span> <span class="p">[(</span><span class="n">name</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">string</span><span class="p">())</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">"fingerprint"</span><span class="p">,</span> <span class="s2">"package_sha256"</span><span class="p">,</span> <span class="s2">"strider_version"</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">summary</span><span class="p">:</span>
+        <span class="n">fields</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">"redshift_posterior"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">list_</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">())))</span>
+    <span class="n">fields</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s2">"error_scale"</span><span class="p">,</span> <span class="n">pa</span><span class="o">.</span><span class="n">float64</span><span class="p">()))</span>
+    <span class="n">grid</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"redshift_grid"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">redshift_grid</span><span class="p">,</span> <span class="s2">"redshift_cell_widths"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">widths</span><span class="p">}</span>
+    <span class="n">metadata</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">grid</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+    <span class="k">return</span> <span class="n">pa</span><span class="o">.</span><span class="n">schema</span><span class="p">(</span><span class="n">fields</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="n">metadata</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="results_table">
+<a class="viewcode-back" href="../../api/strider.io.results_table.html#strider.results_table">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">results_table</span><span class="p">(</span><span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">],</span> <span class="n">model</span><span class="p">,</span> <span class="n">summary</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Return a pyarrow table of results, with one row per object.</span>
+
+<span class="sd">    ``results`` maps each object id to its `strider.Classification`, or to the reason it could not be classified.</span>
+<span class="sd">    :doc:`/results` lists the columns. A ``summary`` table (`results_schema`) is the one a CSV file holds.</span>
+<span class="sd">    """</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">__version__</span>
+
+    <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">row</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"object_id"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">),</span>
+            <span class="s2">"model"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="s2">"fingerprint"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">fingerprint</span><span class="p">,</span>
+            <span class="s2">"package_sha256"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">files_sha256</span><span class="p">,</span>
+            <span class="s2">"strider_version"</span><span class="p">:</span> <span class="n">__version__</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span> <span class="o">|</span> <span class="p">{</span><span class="s2">"failure"</span><span class="p">:</span> <span class="n">result</span><span class="p">})</span>
+            <span class="k">continue</span>
+        <span class="n">dropped</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">reason</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">reason</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">dropped_visits</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="n">second_peak</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">redshift_peaks</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">redshift_peaks</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">redshifts</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">kind</span><span class="p">,</span> <span class="n">found</span> <span class="ow">in</span> <span class="p">((</span><span class="s2">""</span><span class="p">,</span> <span class="n">result</span><span class="p">),</span> <span class="p">(</span><span class="s2">"_ia"</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">redshift_given</span><span class="p">(</span><span class="s2">"Ia"</span><span class="p">))):</span>
+            <span class="n">redshifts</span><span class="p">[</span><span class="sa">f</span><span class="s2">"redshift</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">"</span><span class="p">]</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">redshift</span>
+            <span class="k">for</span> <span class="n">mass</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"68"</span><span class="p">,</span> <span class="s2">"95"</span><span class="p">):</span>
+                <span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"redshift_</span><span class="si">{</span><span class="n">mass</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                <span class="n">redshifts</span><span class="p">[</span><span class="sa">f</span><span class="s2">"redshift</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">mass</span><span class="si">}</span><span class="s2">_lower"</span><span class="p">]</span> <span class="o">=</span> <span class="n">low</span>
+                <span class="n">redshifts</span><span class="p">[</span><span class="sa">f</span><span class="s2">"redshift</span><span class="si">{</span><span class="n">kind</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">mass</span><span class="si">}</span><span class="s2">_upper"</span><span class="p">]</span> <span class="o">=</span> <span class="n">high</span>
+        <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">row</span>
+            <span class="o">|</span> <span class="p">{</span>
+                <span class="s2">"top_class"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">top_class</span><span class="p">,</span>
+                <span class="s2">"top_probability"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">top_probability</span><span class="p">,</span>
+                <span class="s2">"second_class"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">second_class</span><span class="p">,</span>
+                <span class="s2">"second_probability"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">second_probability</span><span class="p">,</span>
+                <span class="s2">"p_ia"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">p_ia</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">redshifts</span><span class="p">,</span>
+                <span class="s2">"redshift_probability"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">redshift_probability</span><span class="p">,</span>
+                <span class="s2">"second_peak_redshift"</span><span class="p">:</span> <span class="n">second_peak</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">"second_peak_probability"</span><span class="p">:</span> <span class="n">second_peak</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="s2">"top_class_redshift"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">class_redshifts</span><span class="p">[</span><span class="n">result</span><span class="o">.</span><span class="n">top_class</span><span class="p">],</span>
+                <span class="s2">"second_class_redshift"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">class_redshifts</span><span class="p">[</span><span class="n">result</span><span class="o">.</span><span class="n">second_class</span><span class="p">],</span>
+                <span class="s2">"source_probability"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">source_probability</span><span class="p">,</span>
+                <span class="s2">"untrained_share"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">untrained_share</span><span class="p">,</span>
+                <span class="s2">"signal_to_noise"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">signal_to_noise</span><span class="p">,</span>
+                <span class="s2">"days_observed"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">days_observed</span><span class="p">,</span>
+                <span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">flags</span><span class="p">,</span>
+                <span class="s2">"best_match_class"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">best_match</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="s2">"best_match_redshift"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">best_match</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="s2">"next_best_class"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">next_best_class</span><span class="p">,</span>
+                <span class="s2">"match_gap"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">match_gap</span><span class="p">,</span>
+                <span class="s2">"match_strength"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">match_strength</span><span class="p">,</span>
+                <span class="s2">"warnings"</span><span class="p">:</span> <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">)</span> <span class="k">if</span> <span class="n">summary</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">warnings</span><span class="p">),</span>
+                <span class="s2">"visits_used"</span><span class="p">:</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">visits_used</span><span class="p">))</span> <span class="k">if</span> <span class="n">summary</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">visits_used</span><span class="p">),</span>
+                <span class="s2">"dropped_visits"</span><span class="p">:</span> <span class="s2">"; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dropped</span><span class="p">)</span> <span class="k">if</span> <span class="n">summary</span> <span class="k">else</span> <span class="n">dropped</span><span class="p">,</span>
+                <span class="s2">"redshift_posterior"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">redshift_posterior</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span>
+                <span class="s2">"error_scale"</span><span class="p">:</span> <span class="n">result</span><span class="o">.</span><span class="n">error_scale</span><span class="p">,</span>
+            <span class="p">}</span>
+            <span class="o">|</span> <span class="p">{</span><span class="sa">f</span><span class="s2">"probability_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span> <span class="n">value</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">class_probabilities</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+            <span class="o">|</span> <span class="p">{</span><span class="sa">f</span><span class="s2">"equal_prior_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">:</span> <span class="n">value</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">equal_prior_probabilities</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+        <span class="p">)</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">results_schema</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">summary</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_pylist</span><span class="p">([{</span><span class="n">name</span><span class="p">:</span> <span class="n">row</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">schema</span><span class="o">.</span><span class="n">names</span><span class="p">}</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">],</span> <span class="n">schema</span><span class="o">=</span><span class="n">schema</span><span class="p">)</span></div>
+
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">ResultsFile</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""A file of results, written a batch at a time, in the format its ending gives: ``.parquet``, ``.csv`` or</span>
+<span class="sd">    ``.json``."""</span>
+
+    <span class="n">FORMATS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">".parquet"</span><span class="p">,</span> <span class="s2">".csv"</span><span class="p">,</span> <span class="s2">".json"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.csv</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">model</span><span class="p">,</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">FORMATS</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"cannot write results to </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">; give a file ending in </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">FORMATS</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">objects</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">".parquet"</span><span class="p">:</span>  <span class="c1"># whole parquet files, one per write, so a killed batch keeps what it wrote</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".parts"</span><span class="p">),</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="si">}</span><span class="s2"> is left from a batch that stopped: read its parquet files "</span>
+                    <span class="s2">"(pyarrow.parquet.read_table) or remove it first"</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">".csv"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writer</span> <span class="o">=</span> <span class="n">pyarrow</span><span class="o">.</span><span class="n">csv</span><span class="o">.</span><span class="n">CSVWriter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">results_schema</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Add results, by object id."""</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">".json"</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">__version__</span>
+
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">objects</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"two transients have the id </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="si">!r}</span><span class="s2">; give each a distinct id"</span><span class="p">)</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="p">{</span><span class="s2">"failure"</span><span class="p">:</span> <span class="n">result</span><span class="p">,</span> <span class="s2">"model"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="s2">"fingerprint"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">fingerprint</span><span class="p">}</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">))</span>
+                    <span class="k">else</span> <span class="n">result</span><span class="o">.</span><span class="n">to_dict</span><span class="p">()</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">objects</span><span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)]</span> <span class="o">=</span> <span class="n">found</span> <span class="o">|</span> <span class="p">{</span>
+                    <span class="s2">"strider_version"</span><span class="p">:</span> <span class="n">__version__</span><span class="p">,</span>
+                    <span class="s2">"package_sha256"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">files_sha256</span><span class="p">,</span>
+                <span class="p">}</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">".parquet"</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+            <span class="n">pq</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">results_table</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">parts</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"part-</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="si">:</span><span class="s2">06d</span><span class="si">}</span><span class="s2">.parquet"</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">results_table</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Finish the file."""</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">".json"</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">objects</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s2">".parquet"</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+            <span class="n">joined</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".tmp"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">joined</span><span class="p">,</span> <span class="n">results_schema</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">))</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"part-*.parquet"</span><span class="p">)):</span>
+                    <span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">part</span><span class="p">))</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">joined</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parts</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writer</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_classified</span><span class="p">(</span><span class="n">results</span><span class="p">):</span>
+    <span class="n">found</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">result</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">)}</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">found</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"no transient was classified, so there is nothing to write"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">found</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">EvidenceMapsFile</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The evidence maps of transients, written to an HDF5 file a batch at a time. Writing it needs h5py.</span>
+
+<span class="sd">    It holds ``log_evidence`` (transients, classes, cells), each transient's evidence for every class and redshift</span>
+<span class="sd">    cell before any prior (`Classification.log_evidence`); ``object_id``; ``classes``, ``redshift_grid`` and</span>
+<span class="sd">    ``redshift_cell_widths``; ``log_survey_prior`` (classes, cells), the model's prior; and ``error_scale``, the</span>
+<span class="sd">    factor each transient's errors were multiplied by (`Classification.error_scale`). Adding a log prior to an evidence</span>
+<span class="sd">    map and normalising gives the posterior under that prior over the cells the model was trained on.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">"writing evidence maps needs h5py: pip install h5py"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">classes</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">redshift_grid</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span> <span class="o">=</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">"w"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">maps</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span>
+            <span class="s2">"log_evidence"</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">),</span> <span class="n">chunks</span><span class="o">=</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">*</span><span class="n">shape</span><span class="p">),</span> <span class="n">compression</span><span class="o">=</span><span class="s2">"gzip"</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ids</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span><span class="s2">"object_id"</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,),</span> <span class="n">h5py</span><span class="o">.</span><span class="n">string_dtype</span><span class="p">(),</span> <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">scales</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">create_dataset</span><span class="p">(</span><span class="s2">"error_scale"</span><span class="p">,</span> <span class="p">(</span><span class="mi">0</span><span class="p">,),</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span> <span class="n">maxshape</span><span class="o">=</span><span class="p">(</span><span class="kc">None</span><span class="p">,))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">[</span><span class="s2">"classes"</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">classes</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">h5py</span><span class="o">.</span><span class="n">string_dtype</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">[</span><span class="s2">"redshift_grid"</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">[</span><span class="s2">"redshift_cell_widths"</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">redshift_grid</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">widths</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="p">[</span><span class="s2">"log_survey_prior"</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">prior</span><span class="p">[</span><span class="s2">"survey_mass"</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"model"</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"fingerprint"</span><span class="p">]</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">fingerprint</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Add the transients classified, by object id."""</span>
+        <span class="n">found</span> <span class="o">=</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">):</span> <span class="n">result</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">)}</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">dataset</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">maps</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scales</span><span class="p">):</span>
+            <span class="n">dataset</span><span class="o">.</span><span class="n">resize</span><span class="p">(</span><span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">found</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">found</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">start</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">maps</span><span class="p">[</span><span class="n">row</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">[</span><span class="n">row</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">log_evidence</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">),</span> <span class="n">key</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">scales</span><span class="p">[</span><span class="n">row</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">error_scale</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Finish the file."""</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RedshiftCurvesFile</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The redshift posteriors of transients as a qp ensemble of histograms on the redshift cells, the format LSST</span>
+<span class="sd">    and DESC redshift tools read, with ``object_id`` and the main-peak ``redshift`` alongside. It is written when it</span>
+<span class="sd">    is closed; until then it keeps each transient's posterior (one number per cell). Writing it needs qp</span>
+<span class="sd">    (pip install qp-prob)."""</span>
+
+    <span class="n">FORMATS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">".hdf5"</span><span class="p">,</span> <span class="s2">".h5"</span><span class="p">,</span> <span class="s2">".hd5"</span><span class="p">,</span> <span class="s2">".hf5"</span><span class="p">,</span> <span class="s2">".fits"</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">model</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">FORMATS</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"cannot write redshift curves to </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">; give a file ending in </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">FORMATS</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">import</span><span class="w"> </span><span class="nn">qp</span>  <span class="c1"># noqa: F401</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">"writing redshift curves needs qp: pip install qp-prob"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">redshifts</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">densities</span> <span class="o">=</span> <span class="n">path</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Add the transients classified, by object id."""</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="n">results</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">redshifts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">redshift</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">densities</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">redshift_posterior</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">widths</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Write the file, if any transient was classified."""</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">qp</span>
+
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.posterior</span><span class="w"> </span><span class="kn">import</span> <span class="n">_cell_edges</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">ensemble</span> <span class="o">=</span> <span class="n">qp</span><span class="o">.</span><span class="n">Ensemble</span><span class="p">(</span>
+            <span class="n">qp</span><span class="o">.</span><span class="n">hist</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="p">{</span><span class="s2">"bins"</span><span class="p">:</span> <span class="n">_cell_edges</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">redshift_grid</span><span class="p">),</span> <span class="s2">"pdfs"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">densities</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)},</span>
+        <span class="p">)</span>
+        <span class="n">ensemble</span><span class="o">.</span><span class="n">set_ancil</span><span class="p">({</span><span class="s2">"object_id"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ids</span><span class="p">),</span> <span class="s2">"redshift"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">redshifts</span><span class="p">)})</span>
+        <span class="n">ensemble</span><span class="o">.</span><span class="n">write_to</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="write_evidence_maps">
+<a class="viewcode-back" href="../../api/strider.io.write_evidence_maps.html#strider.write_evidence_maps">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_evidence_maps</span><span class="p">(</span><span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">],</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Write the evidence maps of the transients classified to an HDF5 file (`EvidenceMapsFile`)."""</span>
+    <span class="n">_write</span><span class="p">(</span><span class="n">EvidenceMapsFile</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">model</span><span class="p">),</span> <span class="n">_classified</span><span class="p">(</span><span class="n">results</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="write_redshift_curves">
+<a class="viewcode-back" href="../../api/strider.io.write_redshift_curves.html#strider.write_redshift_curves">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_redshift_curves</span><span class="p">(</span><span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">],</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Write the redshift posteriors of the transients classified as a qp ensemble (`RedshiftCurvesFile`)."""</span>
+    <span class="n">_write</span><span class="p">(</span><span class="n">RedshiftCurvesFile</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">model</span><span class="p">),</span> <span class="n">_classified</span><span class="p">(</span><span class="n">results</span><span class="p">))</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_write</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">results</span><span class="p">):</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">output</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">output</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="write_results">
+<a class="viewcode-back" href="../../api/strider.io.write_results.html#strider.write_results">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">write_results</span><span class="p">(</span><span class="n">results</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="s2">"Classification | str"</span><span class="p">],</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">os</span><span class="o">.</span><span class="n">PathLike</span><span class="p">,</span> <span class="n">model</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Write results, by object id, to a file. Its ending gives the format: ``.parquet``, a table of results</span>
+<span class="sd">    (`results_table`); ``.csv``, its summary rows; ``.json``, each object's full result."""</span>
+    <span class="n">_write</span><span class="p">(</span><span class="n">ResultsFile</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">model</span><span class="p">),</span> <span class="n">results</span><span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,101 @@
+Classification
+==============
+
+.. currentmodule:: strider
+
+.. autoclass:: Classification
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Classification.best_match
+      ~Classification.class_probabilities
+      ~Classification.class_redshift_posterior
+      ~Classification.class_redshifts
+      ~Classification.days_observed
+      ~Classification.dropped_visits
+      ~Classification.equal_prior_probabilities
+      ~Classification.error_scale
+      ~Classification.fingerprint
+      ~Classification.flags
+      ~Classification.log_evidence
+      ~Classification.match_gap
+      ~Classification.match_strength
+      ~Classification.model
+      ~Classification.next_best_class
+      ~Classification.p_ia
+      ~Classification.redshift
+      ~Classification.redshift_68
+      ~Classification.redshift_95
+      ~Classification.redshift_cell_widths
+      ~Classification.redshift_grid
+      ~Classification.redshift_peaks
+      ~Classification.redshift_posterior
+      ~Classification.redshift_probability
+      ~Classification.redshift_range
+      ~Classification.second_class
+      ~Classification.second_probability
+      ~Classification.signal_to_noise
+      ~Classification.source_probability
+      ~Classification.top_class
+      ~Classification.top_probability
+      ~Classification.trained_classes
+      ~Classification.untrained_share
+      ~Classification.visits_used
+      ~Classification.warnings
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~Classification.card
+      ~Classification.plot
+      ~Classification.redshift_given
+      ~Classification.to_dict
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: best_match
+   .. autoattribute:: class_probabilities
+   .. autoattribute:: class_redshift_posterior
+   .. autoattribute:: class_redshifts
+   .. autoattribute:: days_observed
+   .. autoattribute:: dropped_visits
+   .. autoattribute:: equal_prior_probabilities
+   .. autoattribute:: error_scale
+   .. autoattribute:: fingerprint
+   .. autoattribute:: flags
+   .. autoattribute:: log_evidence
+   .. autoattribute:: match_gap
+   .. autoattribute:: match_strength
+   .. autoattribute:: model
+   .. autoattribute:: next_best_class
+   .. autoattribute:: p_ia
+   .. autoattribute:: redshift
+   .. autoattribute:: redshift_68
+   .. autoattribute:: redshift_95
+   .. autoattribute:: redshift_cell_widths
+   .. autoattribute:: redshift_grid
+   .. autoattribute:: redshift_peaks
+   .. autoattribute:: redshift_posterior
+   .. autoattribute:: redshift_probability
+   .. autoattribute:: redshift_range
+   .. autoattribute:: second_class
+   .. autoattribute:: second_probability
+   .. autoattribute:: signal_to_noise
+   .. autoattribute:: source_probability
+   .. autoattribute:: top_class
+   .. autoattribute:: top_probability
+   .. autoattribute:: trained_classes
+   .. autoattribute:: untrained_share
+   .. autoattribute:: visits_used
+   .. autoattribute:: warnings
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: card
+   .. automethod:: plot
+   .. automethod:: redshift_given
+   .. automethod:: to_dict

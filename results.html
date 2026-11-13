@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Reading the results &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=eb79866c"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Models" href="models.html" />
+    <link rel="prev" title="Running STRIDER" href="usage.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="index.html">
+    <img class="logo" src="_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Running STRIDER</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="usage.html" title="previous chapter">Running STRIDER</a></li>
+      <li>Next: <a href="models.html" title="next chapter">Models</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="usage.html" title="Previous document">Running STRIDER</a>
+        </li>
+        <li>
+          <a href="models.html" title="Next document">Models</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="reading-the-results">
+<h1>Reading the results<a class="headerlink" href="#reading-the-results" title="Link to this heading">¶</a></h1>
+<p><code class="docutils literal notranslate"><span class="pre">print(result)</span></code> gives its card:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>STRIDER · transient                                         strider-15class-1.0
+Class     Ia 100%
+Redshift  0.869 (100% within 0.1) · 68% range 0.864–0.873
+Match     high strength
+Data      11 visits over 100 days · S/N 4.8
+</pre></div>
+</div>
+<p>It reads:</p>
+<ul class="simple">
+<li><p><strong>Class</strong>: the most likely classes, up to three.</p></li>
+<li><p><strong>Redshift</strong>: the most likely redshift, the probability that the true one is within 0.1 of it, and the central 68%
+range.</p></li>
+<li><p><strong>Match</strong>: how strong the best match is (high, medium or low) and any warnings.</p></li>
+<li><p><strong>Data</strong>: the visits used, the days they span and their S/N, the median signal-to-noise per pixel of the visits
+combined.</p></li>
+<li><p><strong>Checks</strong>, only when one applies: a weak source, few classes trained at the redshift, untrained subtypes, or a
+brightness comparison that failed.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">result.plot()</span></code> draws the figure: the spectra (one from each visit) and their combination, with the four bands
+shaded and the rest wavelength at the main redshift on top; the combined spectrum against the best-matching reference
+of the two most likely classes, each at its own redshift; each visit’s brightness in the four bands, against the SN
+Ia light curves fitted to it at the most probable SN Ia redshift, in days from the fitted peak; every class at every
+redshift, with the main and second redshift peaks circled; and the class and redshift probabilities. In the
+brightness panel, each band’s steady level, such as host light, is taken off the points, and the shading shows how
+far SN Ia light curves stray from the fit. The redshift curve of all classes is grey, and it is split into SN Ia and
+all other classes, so you can see whether each peak comes from SN Ia or from another class. Other includes 91bg and
+Iax. It needs matplotlib.</p>
+<p>The results use a prior: how common each class is at each redshift among the transients Roman will find. They also
+use your redshift prior and class priors, if you give them.</p>
+<section id="which-numbers-to-use">
+<h2>Which numbers to use<a class="headerlink" href="#which-numbers-to-use" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Check the flags first. A raised flag means the result needs care.</p></li>
+<li><p>To select SN Ia, cut on <code class="docutils literal notranslate"><span class="pre">p_ia</span></code>. A higher cut-off gives a purer but smaller sample.</p></li>
+<li><p>For the class, use <code class="docutils literal notranslate"><span class="pre">top_class</span></code> with <code class="docutils literal notranslate"><span class="pre">top_probability</span></code>. A low <code class="docutils literal notranslate"><span class="pre">top_probability</span></code> means the class is uncertain.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">match_strength</span></code> and <code class="docutils literal notranslate"><span class="pre">warnings</span></code> say how clearly the data pick one class, whatever the class mix.</p></li>
+<li><p>For the redshift, use <code class="docutils literal notranslate"><span class="pre">redshift</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift_68</span></code>. With several redshift peaks, <code class="docutils literal notranslate"><span class="pre">redshift_peaks</span></code> lists them.
+If you treat the transient as a SN Ia, use <code class="docutils literal notranslate"><span class="pre">result.redshift_given(&quot;Ia&quot;)</span></code> instead: it is the redshift if the
+transient is a SN Ia.</p></li>
+</ul>
+<p>There are three kinds of redshift result:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code> combine all classes.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">result.redshift_given(name)</span></code> assumes the transient is of that class.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">class_redshift_posterior</span></code> holds one row per class, each the redshift posterior given that class.</p></li>
+</ul>
+</section>
+<section id="the-fields">
+<h2>The fields<a class="headerlink" href="#the-fields" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">class_probabilities</span></code>: the probability of each class.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">p_ia</span></code>: the probability of a type Ia supernova.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">top_class</span></code> and <code class="docutils literal notranslate"><span class="pre">top_probability</span></code>: the most likely class and its probability. <code class="docutils literal notranslate"><span class="pre">second_class</span></code> and
+<code class="docutils literal notranslate"><span class="pre">second_probability</span></code>: the next one.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">equal_prior_probabilities</span></code>: the class probabilities if every class were equally common.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift</span></code>: the most likely redshift: the peak of the redshift posterior where the most probability lies within
+0.1 of it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_probability</span></code>: the probability that the true redshift is within 0.1 of <code class="docutils literal notranslate"><span class="pre">redshift</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_peaks</span></code>: each likely redshift as (redshift, probability within 0.1), the main one first, then by
+probability. A second peak is listed if it holds at least 10% within 0.1 and is clearly separate: between it and
+each higher peak, the probability drops below half its own.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_68</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift_95</span></code>: the central 68% and 95% intervals of the redshift.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code>: the probability that the redshift is in each cell. It sums to 1.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_grid</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift_cell_widths</span></code>: the centre and width of each cell. Divide <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code>
+by the widths to get a density.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">class_redshift_posterior</span></code>: the redshift posterior given each class, one row per class. Each row sums to 1, also
+for a class you leave out with <code class="docutils literal notranslate"><span class="pre">classes</span></code>, whose probability is 0. A row is NaN for a class with no posterior at
+the redshifts allowed: none where it had training transients, or none inside <code class="docutils literal notranslate"><span class="pre">redshift_range</span></code>.
+<code class="docutils literal notranslate"><span class="pre">result.redshift_given(name)</span></code> gives its most likely redshift, its 68% and 95% intervals, and the row.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">class_redshifts</span></code>: the most likely redshift of each class, by the same rule as <code class="docutils literal notranslate"><span class="pre">redshift</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log_evidence</span></code>: the evidence map, the evidence for each class at each redshift before any prior. Add the log of
+your own prior probability of each class and redshift cell, and normalise, to get your posterior.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source_probability</span></code>: the probability that the visits hold a transient at all.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">untrained_share</span></code> and the flag <code class="docutils literal notranslate"><span class="pre">untrained_subtypes</span></code> are for models whose classes pool several subtypes; for
+<code class="docutils literal notranslate"><span class="pre">strider-15class</span></code> they are always 0 and False.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">trained_classes</span></code>: the classes the model had training transients of at <code class="docutils literal notranslate"><span class="pre">redshift</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">flags</span></code>:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">weak_source</span></code>: there is probably no transient. <code class="docutils literal notranslate"><span class="pre">source_probability</span></code> is below the cut-off on the model card.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">several_redshift_peaks</span></code>: the redshift has more than one likely value. Look at <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">few_classes_trained</span></code>: fewer than half the classes had training transients at <code class="docutils literal notranslate"><span class="pre">redshift</span></code>, so the classes
+that did not cannot be ruled out.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">brightness_failed</span></code>: the brightness term could not be computed, so the result uses the spectra alone.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">best_match</span></code>: the class and redshift that match the data best, before the expected class mix and your priors.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">next_best_class</span></code>: the best other class, at its own best redshift.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">match_gap</span></code>: how far the best match is ahead of the next-best class, in log units. It is not a probability.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">match_strength</span></code>: <code class="docutils literal notranslate"><span class="pre">high</span></code>, <code class="docutils literal notranslate"><span class="pre">medium</span></code> or <code class="docutils literal notranslate"><span class="pre">low</span></code>, from the match gap at levels fixed with the model: for
+<code class="docutils literal notranslate"><span class="pre">strider-15class</span></code>, a gap of 5 or more is high, 2 to 5 medium, and under 2 low.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">warnings</span></code>: why a match may be less clear, as short sentences:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">second</span> <span class="pre">redshift</span> <span class="pre">near</span> <span class="pre">z</span> <span class="pre">...</span></code>: another redshift of the best class matches nearly as well.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spectra</span> <span class="pre">and</span> <span class="pre">brightness</span> <span class="pre">disagree</span></code>: the spectra alone and the brightness alone favour different classes or
+redshifts.</p></li>
+</ul>
+</li>
+<li><p><code class="docutils literal notranslate"><span class="pre">visits_used</span></code>: the visits used, by their position in your input, counting from 0.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">days_observed</span></code>: the days from the first visit used to the last.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">signal_to_noise</span></code>: the median signal-to-noise per pixel of the visits used, combined, with their errors
+multiplied by <code class="docutils literal notranslate"><span class="pre">error_scale</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dropped_visits</span></code>: the visits left out, by position, each with the reason.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">error_scale</span></code>: the factor the errors were multiplied by (<a class="reference internal" href="usage.html"><span class="doc">Running STRIDER</span></a>); 1 if they were used as given.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_range</span></code>: the redshift range you restricted the result to, or none. The redshifts and intervals then lie
+inside it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model</span></code> and <code class="docutils literal notranslate"><span class="pre">fingerprint</span></code>: the model’s name and version, such as <code class="docutils literal notranslate"><span class="pre">strider-15class-1.0</span></code>, and a code that
+identifies the model: its network, brightness term, priors and settings. <code class="docutils literal notranslate"><span class="pre">package_sha256</span></code> (below) identifies
+every file of its package.</p></li>
+</ul>
+</section>
+<section id="the-results-file">
+<h2>The results file<a class="headerlink" href="#the-results-file" title="Link to this heading">¶</a></h2>
+<p>The file’s ending sets its format. Use parquet for many transients and long runs, CSV for a quick summary, and
+JSON for detailed results with the redshift posteriors (evidence maps are saved separately):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.parquet</span></code>: a table with one row per transient, with the columns below and <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.csv</span></code>: the same rows, without <code class="docutils literal notranslate"><span class="pre">redshift_posterior</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.json</span></code>: each transient’s full result, by name, with the redshift grid and every redshift posterior.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">strider.io.results_schema(model).names</span></code> lists every column. Besides the fields above that are single values,
+there are:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">object_id</span></code>: the transient’s name in your input;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">probability_&lt;class&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">equal_prior_&lt;class&gt;</span></code>: one column for each class;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_68_lower</span></code>, <code class="docutils literal notranslate"><span class="pre">redshift_68_upper</span></code>, <code class="docutils literal notranslate"><span class="pre">redshift_95_lower</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift_95_upper</span></code>: the interval ends;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">redshift_ia</span></code>, <code class="docutils literal notranslate"><span class="pre">redshift_ia_68_lower</span></code> and so on: the same for the redshift if the transient is a SN Ia;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">second_peak_redshift</span></code> and <code class="docutils literal notranslate"><span class="pre">second_peak_probability</span></code>: the second redshift peak, or empty;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">best_match_class</span></code> and <code class="docutils literal notranslate"><span class="pre">best_match_redshift</span></code>: the best match;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">top_class_redshift</span></code> and <code class="docutils literal notranslate"><span class="pre">second_class_redshift</span></code>: the redshift of each of the two most likely classes;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">package_sha256</span></code>: a checksum covering every file of the model package;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">strider_version</span></code>: the version of STRIDER that wrote the row;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">failure</span></code>: why the transient could not be classified, or empty.</p></li>
+</ul>
+<p>The results do not record the priors or options you gave; keep the command with them.</p>
+<p>Each entry of <code class="docutils literal notranslate"><span class="pre">dropped_visits</span></code> reads <code class="docutils literal notranslate"><span class="pre">&quot;&lt;position&gt;:</span> <span class="pre">&lt;reason&gt;&quot;</span></code>. In a CSV file, <code class="docutils literal notranslate"><span class="pre">visits_used</span></code>,
+<code class="docutils literal notranslate"><span class="pre">dropped_visits</span></code> and <code class="docutils literal notranslate"><span class="pre">warnings</span></code> are text, the warnings separated by semicolons. The parquet table’s metadata holds
+<code class="docutils literal notranslate"><span class="pre">redshift_grid</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift_cell_widths</span></code>. Tables from runs of one model have the same columns, so you can stack
+them.</p>
+<p>Two more files are for analysis:</p>
+<ul class="simple">
+<li><p><strong>Evidence maps</strong> (<code class="docutils literal notranslate"><span class="pre">strider.io.write_evidence_maps</span></code>, an HDF5 file): <code class="docutils literal notranslate"><span class="pre">log_evidence</span></code> for every transient, with
+<code class="docutils literal notranslate"><span class="pre">object_id</span></code>, <code class="docutils literal notranslate"><span class="pre">error_scale</span></code>, <code class="docutils literal notranslate"><span class="pre">classes</span></code>, the redshift grid and the model’s own prior, <code class="docutils literal notranslate"><span class="pre">log_survey_prior</span></code>.
+Use them to apply your own mix of classes or redshift information without running STRIDER again. Where the model
+had no training transients, the evidence is -inf. Writing them needs h5py.</p></li>
+<li><p><strong>Redshift curves</strong> (<code class="docutils literal notranslate"><span class="pre">strider.io.write_redshift_curves</span></code>): the redshift posteriors in the format of qp, which LSST
+and DESC redshift tools read, with <code class="docutils literal notranslate"><span class="pre">object_id</span></code> and <code class="docutils literal notranslate"><span class="pre">redshift</span></code>. Writing them needs qp (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span>
+<span class="pre">qp-prob</span></code>).</p></li>
+</ul>
+<p>In a batch (<code class="docutils literal notranslate"><span class="pre">classify_many</span></code>, or the command line), the results and the evidence maps are written as the batch
+goes, <code class="docutils literal notranslate"><span class="pre">chunk</span></code> transients at a time. If the run stops with an error or you stop it (Ctrl-C, or a scheduler’s
+SIGTERM), it first writes the transients done so far. A run killed outright cannot: a CSV file keeps the rows written
+before, and a parquet file’s rows so far are in the folder <code class="docutils literal notranslate"><span class="pre">&lt;file&gt;.parquet.parts</span></code>, which
+<code class="docutils literal notranslate"><span class="pre">pyarrow.parquet.read_table</span></code> reads (remove it before running again). JSON results and the redshift curves are
+written only at the end, so for long batches use parquet.</p>
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="usage.html" title="Previous document">Running STRIDER</a>
+        </li>
+        <li>
+          <a href="models.html" title="Next document">Models</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/results.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

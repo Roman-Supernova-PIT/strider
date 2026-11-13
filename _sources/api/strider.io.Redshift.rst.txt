@@ -1,0 +1,23 @@
+Redshift
+========
+
+.. currentmodule:: strider.io
+
+.. autoclass:: Redshift
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Redshift.redshift
+      ~Redshift.redshift_68
+      ~Redshift.redshift_95
+      ~Redshift.redshift_posterior
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: redshift
+   .. autoattribute:: redshift_68
+   .. autoattribute:: redshift_95
+   .. autoattribute:: redshift_posterior

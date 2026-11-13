@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>strider.registry &#8212; STRIDER 0.1.dev1+g8af8f738b documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+    <script src="../../_static/documentation_options.js?v=eb79866c"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="../../index.html">
+    <img class="logo" src="../../_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../smdc.html">Running on the Roman SMDC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for strider.registry</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Released STRIDER models, and the folder they are downloaded to."""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">importlib.resources</span><span class="w"> </span><span class="kn">import</span> <span class="n">files</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">pooch</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"MODELS"</span><span class="p">,</span> <span class="s2">"DEFAULT_MODEL"</span><span class="p">,</span> <span class="s2">"TEST_MODEL"</span><span class="p">,</span> <span class="s2">"model_dir"</span><span class="p">,</span> <span class="s2">"model_path"</span><span class="p">,</span> <span class="s2">"fetch"</span><span class="p">]</span>
+
+<span class="c1"># one entry per released package; the package itself states its format</span>
+<span class="n">MODELS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"strider-15class"</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">"url"</span><span class="p">:</span> <span class="s2">"https://github.com/Roman-Supernova-PIT/strider/releases/download/0.1.0/strider-15class-1.0.tar.gz"</span><span class="p">,</span>
+        <span class="s2">"sha256"</span><span class="p">:</span> <span class="s2">"24706ea842884dc7d5068ffcdd465db1fb95e87de8c390decaa48debbb016d1b"</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">}</span>
+<span class="n">DEFAULT_MODEL</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="s2">"strider-15class"</span>
+<span class="c1"># the bundled test model, whose results are placeholders</span>
+<span class="n">TEST_MODEL</span> <span class="o">=</span> <span class="s2">"test"</span>
+
+
+<div class="viewcode-block" id="model_dir">
+<a class="viewcode-back" href="../../api/strider.registry.model_dir.html#strider.registry.model_dir">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">model_dir</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the folder models are downloaded to. This is ``$STRIDER_MODEL_DIR`` if set, otherwise</span>
+<span class="sd">    ``~/.cache/strider``."""</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"STRIDER_MODEL_DIR"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">Path</span><span class="o">.</span><span class="n">home</span><span class="p">()</span> <span class="o">/</span> <span class="s2">".cache"</span> <span class="o">/</span> <span class="s2">"strider"</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="model_path">
+<a class="viewcode-back" href="../../api/strider.registry.model_path.html#strider.registry.model_path">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">model_path</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return where the released model ``name`` is downloaded to."""</span>
+    <span class="k">return</span> <span class="n">model_dir</span><span class="p">()</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">.tar.gz"</span></div>
+
+
+
+<div class="viewcode-block" id="fetch">
+<a class="viewcode-back" href="../../api/strider.registry.fetch.html#strider.registry.fetch">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">fetch</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the local path of a released model package, downloading it if needed.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : str, optional</span>
+<span class="sd">        A model name, as ``strider models`` lists them, or ``"test"`` for the bundled test model. If left out, the</span>
+<span class="sd">        default model.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    pathlib.Path</span>
+<span class="sd">        The downloaded package.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="n">TEST_MODEL</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">files</span><span class="p">(</span><span class="s2">"strider"</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"tests"</span> <span class="o">/</span> <span class="s2">"data"</span> <span class="o">/</span> <span class="s2">"strider-synthetic-test-1.0.tar.gz"</span><span class="p">))</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">MODELS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">'no model is released yet; use the test model, "test", whose results are placeholders, or '</span>
+            <span class="s2">"give the path of a model package"</span>
+        <span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">DEFAULT_MODEL</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">MODELS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"unknown model </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2">; released models: </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">MODELS</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">entry</span> <span class="o">=</span> <span class="n">MODELS</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">entry</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sha256"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span> <span class="o">!=</span> <span class="mi">64</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"model </span><span class="si">{</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> has no full sha256 in the registry, so it cannot be checked"</span><span class="p">)</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">model_path</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">Path</span><span class="p">(</span><span class="n">pooch</span><span class="o">.</span><span class="n">retrieve</span><span class="p">(</span><span class="n">entry</span><span class="p">[</span><span class="s2">"url"</span><span class="p">],</span> <span class="n">known_hash</span><span class="o">=</span><span class="sa">f</span><span class="s2">"sha256:</span><span class="si">{</span><span class="n">entry</span><span class="p">[</span><span class="s1">'sha256'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">fname</span><span class="o">=</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="p">))</span></div>
+
+</pre></div>
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

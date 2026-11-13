@@ -1,0 +1,6 @@
+results_table
+=============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: results_table

@@ -1,0 +1,31 @@
+Transient
+=========
+
+.. currentmodule:: strider
+
+.. autoclass:: Transient
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Transient.host_redshift
+      ~Transient.host_redshift_error
+      ~Transient.visits
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~Transient.from_table
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: host_redshift
+   .. autoattribute:: host_redshift_error
+   .. autoattribute:: visits
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: from_table
