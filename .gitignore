@@ -1,0 +1,23 @@
+# Python builds and caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Generated
+strider/_version.py
+docs/_build/
+docs/api/
+
+# Editors and systems
+.DS_Store
+.vscode/
+*code-workspace

@@ -1,0 +1,130 @@
+[project]
+name = "roman-snpit-strider"
+description = "Transient classification and redshift inference from Roman prism spectra"
+requires-python = ">=3.11"
+dynamic = ["version"]
+authors = [
+  { name = "Roman Supernova Project Infrastructure Team" },
+  { name = "Mitchell Dixon" },
+  { name = "David Jones" },
+  { name = "K. Anumba" },
+]
+maintainers = [
+  { name = "Mitchell Dixon", email = "87167796+mdixon741@users.noreply.github.com" },
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python",
+  "Topic :: Scientific/Engineering :: Astronomy",
+]
+dependencies = [
+  "numpy>=1.26",
+  "pooch>=1.8",
+  "pyarrow>=16",
+  "torch>=2.6",
+]
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
+
+[project.readme]
+file = "README.rst"
+content-type = "text/x-rst"
+
+[project.scripts]
+strider = "strider.cli:main"
+
+[project.optional-dependencies]
+plot = [
+  "matplotlib",
+  "cmasher",
+]
+io = [
+  "astropy",
+  "h5py",
+  "qp-prob",
+]
+test = [
+  "pytest",
+  "pytest-doctestplus",
+]
+docs = [
+  "sphinx",
+  "sphinx-automodapi",
+]
+dev = [
+  "ruff",
+]
+
+[project.urls]
+repository = "https://github.com/Roman-Supernova-PIT/strider"
+documentation = "https://roman-supernova-pit.github.io/strider/"
+issues = "https://github.com/Roman-Supernova-PIT/strider/issues"
+
+[build-system]
+requires = [
+  "setuptools>=77",
+  "setuptools_scm>=9.2",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+zip-safe = false
+include-package-data = true
+
+[tool.setuptools.package-data]
+strider = ["data/*.parquet", "data/*.csv", "data/*.json", "tests/data/*.tar.gz", "tests/data/*.npz"]
+
+[tool.setuptools.packages.find]
+namespaces = true
+include = [
+"strider*"
+]
+
+[tool.setuptools_scm]
+version_file = "strider/_version.py"
+fallback_version = "0.1.dev0"  # an install without git history (a container build or a source archive)
+
+[tool.setuptools_scm.scm.git]
+# Only bare semver tags are versions; archive and legacy tags are ignored.
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "[0-9]*.[0-9]*.[0-9]*"]
+
+[tool.pytest.ini_options]
+testpaths = [
+  "strider",
+  "docs",
+]
+doctest_plus = "enabled"
+doctest_rst = "enabled"
+text_file_format = "rst"
+addopts = "--doctest-rst"
+
+[tool.ruff]
+line-length = 120
+indent-width = 4
+exclude = [
+    ".git",
+    ".github",
+    ".ruff_cache",
+    ".vscode",
+    "__pypackages__",
+    "docs",
+]
+
+
+[tool.ruff.lint]
+preview = true
+select = [ 'F', 'E101', 'E111', 'E112', 'E113', 'E115', 'E117',
+           'E204', 'E223', 'E224', 'E231', 'E242', 'E265', 'E273', 'E274', 'E275',
+           'E301', 'E302', 'E305', 'E306', 'E401', 'E501', 'E502', 'E703',
+           'E711', 'E713', 'E714', 'E72', 'E74',
+           'W19', 'W29', 'W39', 'W605',
+           'N804', 'N805', 'N807',
+           'D206', 'D300', 'D301',
+           'UP010', 'UP011', 'UP012', 'UP013', 'UP014', 'UP017', 'UP018', 'UP019',
+           'UP02', 'UP030', 'UP031', 'UP033', 'UP034', 'UP035', 'UP036',
+           'UP037', 'UP039', 'UP04',
+           'PLE0100', 'PLE0101', 'PLE0116',
+           'NPY',
+           'RUF018',
+           'W505', 'D200', 'D212', 'RUF021' ]

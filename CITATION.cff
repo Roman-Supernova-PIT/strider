@@ -1,0 +1,37 @@
+cff-version: 1.2.0
+message: "If you use STRIDER, please cite the paper below and the software."
+title: "STRIDER"
+type: software
+abstract: "Transient classification and redshift inference from Roman prism spectra."
+authors:
+  - family-names: Dixon
+    given-names: Mitchell
+    orcid: "https://orcid.org/0000-0003-0928-0494"
+  - family-names: Jones
+    given-names: David
+    orcid: "https://orcid.org/0000-0002-6230-0151"
+  - family-names: Anumba
+    given-names: K.
+    orcid: "https://orcid.org/0000-0001-8791-7273"
+version: "0.1.0"
+date-released: "2026-11-13"
+repository-code: "https://github.com/Roman-Supernova-PIT/strider"
+url: "https://roman-supernova-pit.github.io/strider/"
+license: BSD-3-Clause
+keywords:
+  - astronomy
+  - transients
+  - redshift
+  - spectroscopy
+  - Roman Space Telescope
+preferred-citation:
+  type: article
+  title: "STRIDER: Supernova Classification and Redshift Estimation from Roman Space Telescope Prism Spectra"
+  status: in-preparation
+  authors:
+    - family-names: Dixon
+      given-names: Mitchell
+    - family-names: Jones
+      given-names: David
+    - family-names: Anumba
+      given-names: K.

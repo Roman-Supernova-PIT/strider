@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - python-version: "3.11"
+          - python-version: "3.13"
+          - python-version: "3.11"
+            oldest: true  # the oldest dependencies pyproject.toml allows
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install CPU PyTorch
+        run: python -m pip install "torch${{ matrix.oldest && '==2.6.*' || '' }}" --index-url https://download.pytorch.org/whl/cpu
+      - name: Install the oldest NumPy, pooch and pyarrow
+        if: matrix.oldest
+        run: python -m pip install "numpy==1.26.*" "pooch==1.8.*" "pyarrow==16.*"
+      - name: Install STRIDER
+        run: python -m pip install -e ".[test]"
+      - name: Run tests
+        run: python -m pytest
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.13"
+      - name: Install ruff
+        run: python -m pip install "ruff==0.12.0"
+      - name: Check style
+        run: ruff check strider && ruff format --check strider
+
+  extras:  # the optional features (SMDC files, evidence maps, redshift curves, plots, tables) and an installed copy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install CPU PyTorch
+        run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install STRIDER with every extra, as a user would (not editable)
+        run: python -m pip install ".[io,plot,test]" pandas
+      - name: Run every test against the installed copy
+        run: |
+          cd "$RUNNER_TEMP"
+          python -m pytest --pyargs strider -p no:cacheprovider -o addopts=""
+      - name: Check the installed command line
+        run: |
+          cd "$RUNNER_TEMP"
+          strider check --model test
