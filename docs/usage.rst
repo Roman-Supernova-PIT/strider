@@ -3,7 +3,7 @@ Running STRIDER
 
 Classify one transient with ``model.classify``, or many with ``model.classify_many``. On the command line, use
 ``strider classify``. The `tutorial <https://github.com/Roman-Supernova-PIT/strider/blob/main/docs/tutorial.ipynb>`_
-shows each step, and :doc:`results` explains what comes back.
+shows each step, and `Reading the results <results.rst>`__ explains what comes back.
 
 Inputs
 ------
@@ -90,7 +90,8 @@ per unit frequency:
     strider classify example_own_names.parquet -o results.parquet \
         --columns object_id=SNID,wavelength=lam,error=flux_error --wavelength-unit micron --flux-density f_nu
 
-The results file's ending sets its format: ``.parquet``, ``.csv`` or ``.json`` (:doc:`results`). ``plots`` saves each
+The results file's ending sets its format: ``.parquet``, ``.csv`` or ``.json`` (`Reading the results
+<results.rst>`__). ``plots`` saves each
 transient's figure in a folder. If one transient fails, its result is the reason, and the batch carries on.
 ``strider classify`` exits with an error only if no transient could be classified. For a long batch written to
 files, ``keep=False`` keeps only the failures in memory; the command line does this when it writes a results file.
@@ -202,9 +203,10 @@ The command line
 - ``strider classify spectra.parquet -o results.parquet``: classify many, and write the results. ``-o`` can also
   end in ``.csv`` or ``.json``.
 - ``strider merge job*.parquet -o results.parquet``: join the results of a run split into jobs
-  (:doc:`running_at_scale`).
+  (`Running many transients <running_at_scale.rst>`__).
 - ``strider info``: describe this install; ``strider info results.parquet``, the run behind a results file.
-- ``strider rerun FOLDER``: classify saved transients again and compare (:doc:`troubleshooting`).
+- ``strider rerun FOLDER``: classify saved transients again and compare (`When something goes wrong
+  <troubleshooting.rst>`__).
 - ``strider models``: list the released models. ``--card NAME`` prints a model's card.
 - ``strider check``: check the install and a model.
 
@@ -212,7 +214,7 @@ Options of ``strider classify``:
 
 - **Outputs**: ``-o`` (the results file); ``--plot`` (each transient's figure, as ``<name>.png``; ``--plot figures``
   puts them in the folder ``figures``); ``--evidence-maps evidence.h5`` and ``--redshift-curves
-  redshifts.hdf5`` (:doc:`results`).
+  redshifts.hdf5`` (`Reading the results <results.rst>`__).
 - **The input**: ``--columns``, ``--wavelength-unit`` and ``--flux-density``; ``--only ID,...`` classifies only those
   transients.
 - **What you know**: ``--classes``, ``--class-prior``, ``--zmin``, ``--zmax`` and ``--host-redshift-outlier``;
@@ -220,5 +222,6 @@ Options of ``strider classify``:
 - **Running**: ``--model``, ``--workers``, ``--device``, ``--batch``, ``--full-scan`` and ``--max-spectra``.
   ``--model`` takes a released model's name, ``test`` for the bundled test model, or the path to a model package.
   Without it, STRIDER uses the default model.
-- **Long runs**: ``--job K/N``, ``--resume``, ``--save-every`` and ``--verbose`` (:doc:`running_at_scale`);
-  ``--save-transient FOLDER`` with ``--only`` (:doc:`troubleshooting`).
+- **Long runs**: ``--job K/N``, ``--resume``, ``--save-every`` and ``--verbose`` (`Running many transients
+  <running_at_scale.rst>`__);
+  ``--save-transient FOLDER`` with ``--only`` (`When something goes wrong <troubleshooting.rst>`__).

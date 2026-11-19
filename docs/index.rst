@@ -9,7 +9,8 @@ How it works
 ------------
 
 STRIDER combines the visits into one spectrum and compares it with each class at every redshift. It also compares how
-the brightness in four bands changes between visits with each class. :doc:`how_it_works` explains each step.
+the brightness in four bands changes between visits with each class. `How STRIDER works <how_it_works.rst>`__
+explains each step.
 
 .. toctree::
    :maxdepth: 1

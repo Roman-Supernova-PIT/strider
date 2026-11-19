@@ -118,7 +118,8 @@ The fields
 - ``warning_codes``: a short, fixed code for each warning and each flag raised, in a fixed order, for counting
   results by kind: ``second_redshift``, ``spectra_brightness_disagree``, ``weak_source``, ``several_redshift_peaks``,
   ``untrained_subtypes``, ``few_classes_trained`` and ``brightness_failed``.
-- ``light_curve_check``: whether the light curve's errors are too small for its scatter (:doc:`usage`). Its
+- ``light_curve_check``: whether the light curve's errors are too small for its scatter (`Running STRIDER
+  <usage.rst>`__). Its
   ``status`` is ``too_few_points`` (too few faint points to tell), ``fine``, ``too_small`` (left as given),
   ``corrected`` (scaled up, with ``light_curve_errors="correct"``) or ``failed``. It also gives the ``scatter`` over
   what the errors allow; the faint ``points`` it used;
@@ -129,14 +130,15 @@ The fields
 - ``signal_to_noise``: the median signal-to-noise per pixel of the visits used, combined, with their errors
   multiplied by ``error_scale``.
 - ``dropped_visits``: the visits left out, by position, each with the reason.
-- ``error_scale``: the factor the errors were multiplied by (:doc:`usage`); 1 if they were used as given.
+- ``error_scale``: the factor the errors were multiplied by (`Running STRIDER <usage.rst>`__); 1 if they were used as
+  given.
 - ``redshift_range``: the redshift range you restricted the result to, or none. The redshifts and intervals then lie
   inside it.
 - ``model`` and ``fingerprint``: the model's name and version, such as ``strider-15class-1.0``, and a code that
   identifies the model: its network, brightness comparison, priors and settings. ``package_sha256`` (below) identifies
   every file of its package.
 - ``brightness_scan``: how the brightness comparison searched peak dates, ``fast`` (the default) or ``full``
-  (:doc:`usage`).
+  (`Running STRIDER <usage.rst>`__).
 
 The results file
 ----------------
@@ -171,7 +173,7 @@ there are:
   a GPU; ``peak_memory_mb``: the most memory the process had used by then, in MB;
 - ``schema_version``: the version of this list of columns.
 
-A parquet results file also keeps a record of its run (:doc:`running_at_scale`).
+A parquet results file also keeps a record of its run (`Running many transients <running_at_scale.rst>`__).
 
 Each entry of ``dropped_visits`` reads ``"<position>: <reason>"``. In a CSV file, ``visits_used``,
 ``dropped_visits`` and ``warnings`` are text, the warnings separated by semicolons. The parquet table's metadata holds
@@ -190,5 +192,6 @@ Two more files are for analysis:
 
 In a batch (``classify_many``, or the command line), the results and the evidence maps are written as the batch
 goes, ``chunk`` transients at a time. A parquet run that stops, even one killed outright, can carry on with
-``--resume`` (:doc:`running_at_scale`). A CSV file keeps the rows written before a stop, and cannot carry on. JSON
+``--resume`` (`Running many transients <running_at_scale.rst>`__). A CSV file keeps the rows written before a stop,
+and cannot carry on. JSON
 results and the redshift curves are written only at the end, so for long batches use parquet.

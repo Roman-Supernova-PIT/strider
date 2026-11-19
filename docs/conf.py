@@ -19,7 +19,7 @@ extensions = [
     "sphinx_automodapi.automodapi",
     "sphinx_automodapi.smart_resolver",
 ]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "README.rst"]  # README.rst: the folder's page on GitHub
 master_doc = "index"
 default_role = "py:obj"
 intersphinx_mapping = {
@@ -45,3 +45,17 @@ html_theme_options = {
 autoclass_content = "both"
 autosummary_generate = True
 automodapi_toctreedirnm = "api"
+
+
+def _page_links(app, doctree, docname):
+    """the pages link to each other as name.rst, which works on GitHub; here the built pages are name.html"""
+    from docutils import nodes
+
+    for ref in doctree.findall(nodes.reference):
+        uri = ref.get("refuri", "")
+        if uri.endswith(".rst") and "://" not in uri:
+            ref["refuri"] = uri[:-4] + ".html"
+
+
+def setup(app):
+    app.connect("doctree-resolved", _page_links)

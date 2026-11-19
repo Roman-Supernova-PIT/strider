@@ -7,10 +7,10 @@ What a message means
 - **"the rows of object ... are not together"**: ``strider classify`` reads a parquet table one transient at a time,
   so each transient's rows must be next to each other. Sort the table by ``object_id``.
 - **"... is missing the column(s) ..."** or **"... has no column for ..."**: give the table's own column names with
-  ``--columns`` (:doc:`usage`).
+  ``--columns`` (`Running STRIDER <usage.rst>`__).
 - **"... exists already"**: STRIDER never overwrites a parquet results file. Give a new name, or remove the old file.
 - **"... is left from a run that stopped"**: carry it on with ``--resume``, or remove the ``.parts`` folder to start
-  again (:doc:`running_at_scale`).
+  again (`Running many transients <running_at_scale.rst>`__).
 - **"cannot resume ...: ... changed since it stopped"**: the input, model, settings, STRIDER version, job or ``--only``
   list are not the stopped run's. Write to a new file.
 - **"another run is writing ..."**: two jobs were given the same results file. Give each its own.

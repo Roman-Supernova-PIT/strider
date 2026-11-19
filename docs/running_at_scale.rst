@@ -77,5 +77,6 @@ Time and memory
 Each worker holds the model and one transient: 1 to 2 GB of memory, a little more the longer it runs. The time per
 transient depends mostly on its light curve. It ranges from seconds to more than half an hour on one core, and is a
 few minutes for a typical transient. ``--max-spectra 16`` keeps every transient to a few minutes, at some cost for
-distant, faint transients (:doc:`usage`). ``strider info`` sums up the time and memory a run used, to plan the next.
+distant, faint transients (`Running STRIDER <usage.rst>`__). ``strider info`` sums up the time and memory a run used,
+to plan the next.
 On a Slurm cluster, ``seff <job id>``, where it is installed, shows the memory and CPU time a finished job used.

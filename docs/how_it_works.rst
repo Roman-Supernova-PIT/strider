@@ -47,7 +47,7 @@ What comes out
   class it is (the match gap, not a probability), its strength (high, medium or low), and warnings when a second
   redshift fits nearly as well or the two comparisons disagree.
 
-:doc:`results` explains each of these.
+`Reading the results <results.rst>`__ explains each of these.
 
 What it does not do
 -------------------
