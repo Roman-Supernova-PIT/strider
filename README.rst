@@ -80,8 +80,8 @@ Put them in a parquet table with one row per visit, then run:
 It saves as it goes, so a run that stops carries on with ``--resume``, and ``--job K/N`` splits a run into jobs.
 ``strider info results.parquet`` shows how a run was made.
 
-`Documentation <https://roman-supernova-pit.github.io/strider/>`_ |
-`How it works <https://roman-supernova-pit.github.io/strider/how_it_works.html>`_ |
+`Documentation <https://github.com/Roman-Supernova-PIT/strider/tree/main/docs>`_ |
+`How it works <https://github.com/Roman-Supernova-PIT/strider/blob/main/docs/how_it_works.rst>`_ |
 `Tutorial <https://github.com/Roman-Supernova-PIT/strider/blob/main/docs/tutorial.ipynb>`_ |
 `Issues <https://github.com/Roman-Supernova-PIT/strider/issues>`_ | Cite Dixon et al. (in prep.) | BSD 3-Clause
 licence | By the Roman Supernova Project Infrastructure Team

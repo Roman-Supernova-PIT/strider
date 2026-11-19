@@ -57,7 +57,7 @@ dev = [
 
 [project.urls]
 repository = "https://github.com/Roman-Supernova-PIT/strider"
-documentation = "https://roman-supernova-pit.github.io/strider/"
+documentation = "https://github.com/Roman-Supernova-PIT/strider/tree/main/docs"
 issues = "https://github.com/Roman-Supernova-PIT/strider/issues"
 
 [build-system]
