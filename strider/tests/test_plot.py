@@ -16,6 +16,7 @@ import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 
+from matplotlib.colors import to_rgba  # noqa: E402
 import strider  # noqa: E402
 from strider import plot  # noqa: E402
 from strider.model import _steps  # noqa: E402
@@ -47,19 +48,31 @@ def test_the_figure_has_its_five_panels(model, tmp_path):
     result = model.classify(strider.load_example())
     figure = result.plot(tmp_path / "result.png", name="sn_ia")
     titles = [ax.get_title(loc="left") for ax in figure.axes]
-    for start in (
-        "(a) 11 spectra",
-        "(b) Best-matching references",
-        "(c) Brightness in four bands",
-        "(d) Every class",
-        "(e) Class",
-        "Redshift (68% shaded)",
-    ):
-        assert any(title.startswith(start) for title in titles), start
-    assert figure._suptitle.get_text() == "sn_ia"
-    spectra, bands = (next(ax for ax in figure.axes if ax.get_title(loc="left").startswith(t)) for t in ("(a)", "(c)"))
+    for title in ("(a) Spectra", "(b) Best match", "(c) Brightness", "(e) Class"):
+        assert title in titles, title
+    assert "Redshift" in titles and "(d) Every class at every redshift, relative to the most probable" in titles
+    heading = [text.get_text() for text in figure.texts]
+    label, z = result.best_match
+    best, top = plot._name(label), result._ranked()[0]
+    assert heading[:2] == ["sn_ia", result.model]
+    tiles = heading[2:14]
+    assert tiles[0::3] == ["Class", "Redshift", "Match", "Data"]
+    assert tiles[1::3] == [
+        f"{plot._name(top[0])} {round(100 * top[1])}%",
+        result.report().splitlines()[2].split()[1],  # the report's redshift
+        result.match_strength.capitalize(),
+        "11 visits",
+    ]
+    assert tiles[8] == f"best {best}, next {plot._name(result.next_best_class)}"
+    notes = [*result.warnings, *result._report_parts()[3]]
+    assert heading[14:] == (["Warnings: " + "; ".join(notes)] if notes else [])
+    spectra, match, bands = (
+        next(ax for ax in figure.axes if ax.get_title(loc="left").startswith(t)) for t in ("(a)", "(b)", "(c)")
+    )
     assert len(spectra.patches) == 4  # the four bands, shaded
-    assert [text.get_text()[:11] for text in bands.texts] == ["SN Ia at z "] and len(bands.lines) >= 4
+    assert [text.get_text() for text in spectra.texts] == ["11 spectra: 16–84%", "Combined"]
+    assert [text.get_text() for text in match.texts] == ["Combined", f"{best} model"] and len(match.lines) == 2
+    assert [text.get_text() for text in bands.texts][0] == f"{best} at z = {z:.2f}" and len(bands.lines) >= 4
     assert bands.get_xlabel() == "Observer-frame days from peak"
     assert (tmp_path / "result.png").stat().st_size > 10_000
 
@@ -121,6 +134,54 @@ def test_without_sn_ia_the_redshift_panel_shows_other_as_the_total(model):
 def by_date(transient, k):
     """The transient's first ``k`` visits by MJD."""
     return replace(transient, visits=sorted(transient.visits, key=lambda visit: visit.mjd)[:k])
+
+
+def panel(figure, start):
+    return next(ax for ax in figure.axes if ax.get_title(loc="left").startswith(start))
+
+
+def red_edge(model, transient):
+    """The observed wavelength, in microns, where the spectra panel ends."""
+    result = model.classify(transient)
+    return panel(result.plot(), "(a)").get_xlim()[1] * (1.0 + result.redshift)
+
+
+def test_pixels_of_huge_error_are_left_out_of_the_spectra(model):
+    example = strider.load_example()
+    huge = [np.where(visit.wavelength > 17000, 1e7, 1.0) * visit.error for visit in example.visits]
+    visits = [replace(visit, error=error) for visit, error in zip(example.visits, huge)]
+    assert red_edge(model, example) > 1.75
+    assert red_edge(model, replace(example, visits=visits)) < 1.70
+
+
+def test_brightness_points_below_s_n_2_are_open_and_the_panel_says_so(model):
+    example = strider.load_example()
+
+    def drawn(factor):
+        """The note under (c)'s label, and each point's S/N and whether it is drawn open."""
+        visits = [replace(visit, error=visit.error * factor) for visit in example.visits]
+        bands = panel(model.classify(replace(example, visits=visits)).plot(), "(c)")
+        points = []
+        for container in bands.containers:
+            line, _, (bars,) = container.lines
+            open_ = to_rgba(line.get_markerfacecolor()) == to_rgba("white")
+            for y, segment in zip(line.get_ydata(), bars.get_segments()):
+                points.append((y / ((segment[1, 1] - segment[0, 1]) / 2), open_))
+        return [text.get_text() for text in bands.texts][1:], points
+
+    note, points = drawn(10.0)  # some points measured, most noise
+    assert {open_ for _, open_ in points} == {True, False} and note == ["Open circles: S/N < 2"]
+    assert all(open_ == (ratio < 2.0) for ratio, open_ in points)
+    note, points = drawn(1e3)  # every point noise: all open
+    assert note == ["Open circles: S/N < 2"] and all(open_ for _, open_ in points)
+
+
+def test_with_one_visit_the_figure_shows_the_spectrum_and_says_why_it_has_no_fit(model):
+    figure = model.classify(by_date(strider.load_example(), 1)).plot()
+    assert [text.get_text() for text in panel(figure, "(a)").texts] == ["Spectrum"]  # no spread, nothing combined
+    bands = panel(figure, "(c)")
+    assert [text.get_text() for text in bands.texts] == ["Too few visits to fit"]
+    assert bands.get_xlabel() == "Observer-frame days"
 
 
 def same(result, expected):
@@ -239,3 +300,46 @@ def test_every_row_shows_only_the_classes_allowed(fixture):
 def test_the_accumulation_figure_refuses_what_it_cannot_draw(fixture, options, message):
     with pytest.raises(ValueError, match=message):
         fixture.plot_accumulation(strider.load_example(), **options)
+
+
+def test_the_main_redshift_ring_is_bolder_than_the_second(model):
+    result = model.classify(strider.load_example())
+    two = replace(result, redshift_peaks=[(0.5, 0.6), (2.0, 0.3)])
+    two._source = result._source
+    ax = panel(two.plot(), "(d)")
+    rings = {line.get_label(): line for line in ax.get_lines()}
+    main, second = rings["main redshift"], rings["second redshift"]
+    assert main.get_markersize() > second.get_markersize() and main.get_markeredgewidth() > second.get_markeredgewidth()
+    assert main.get_alpha() == 1.0 and second.get_alpha() < 1.0 and main.get_path_effects()  # seen on any cell
+
+
+def test_one_very_noisy_spectrum_does_not_set_the_spread():
+    from types import SimpleNamespace
+
+    flux, log_error = np.ones((3, 100)), np.zeros((3, 100))
+    flux[0, 40:45], flux[0, 45:50] = -1e6, 1e6  # far below and above zero, summing to nothing...
+    log_error[0, 40:50] = np.log(1e7)  # ...with errors to match
+    spectra = SimpleNamespace(flux=flux, measured=np.ones((3, 100), bool), log_error=log_error)
+    low, high = plot._spread(spectra, np.ones(100), np.ones(100, bool), 1.0)
+    assert np.nanmin(low) > 0.5 and np.nanmax(high) < 1.5
+
+
+def test_many_warnings_wrap_under_the_box(model):
+    result = model.classify(strider.load_example())
+    many = replace(result, warnings=[f"a long warning about something odd, number {n}" for n in range(6)])
+    many._source = result._source
+    lines = [text.get_text() for text in many.plot().texts if text.get_text().startswith("Warnings: ")][0]
+    assert len(lines.splitlines()) > 1 and max(map(len, lines.splitlines())) <= 105
+
+
+def test_a_few_deep_noise_spikes_do_not_set_the_spectrum_panels_height():
+    import matplotlib.pyplot as plt
+
+    line = np.full(200, 0.6)
+    line[:3] = -5.0  # 1.5% of the pixels
+    figure, ax = plt.subplots()
+    plot._fill_height(ax, line)
+    assert ax.get_ylim()[0] == pytest.approx(-0.08)
+    plot._fill_height(ax, line, np.array([-0.5, 1.0]))  # a model line is shown whole
+    assert ax.get_ylim()[0] == pytest.approx(-0.58)
+    plt.close(figure)

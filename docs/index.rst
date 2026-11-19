@@ -17,8 +17,10 @@ the brightness in four bands changes between visits with each class. :doc:`how_i
    how_it_works
    installation
    usage
+   running_at_scale
    results
+   troubleshooting
    models
-   smdc
    glossary
+   changes
    api

@@ -19,9 +19,12 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Astronomy",
 ]
 dependencies = [
+  "cmasher",
+  "matplotlib",
   "numpy>=1.26",
   "pooch>=1.8",
   "pyarrow>=16",
+  "scipy>=1.11",
   "torch>=2.6",
 ]
 license = "BSD-3-Clause"
@@ -35,10 +38,6 @@ content-type = "text/x-rst"
 strider = "strider.cli:main"
 
 [project.optional-dependencies]
-plot = [
-  "matplotlib",
-  "cmasher",
-]
 io = [
   "astropy",
   "h5py",

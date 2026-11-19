@@ -60,7 +60,7 @@ jobs:
       - name: Install CPU PyTorch
         run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - name: Install STRIDER with every extra, as a user would (not editable)
-        run: python -m pip install ".[io,plot,test]" pandas
+        run: python -m pip install ".[io,test]" pandas
       - name: Run every test against the installed copy
         run: |
           cd "$RUNNER_TEMP"

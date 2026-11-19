@@ -3,9 +3,10 @@ the model's brightness tables at two of their template redshifts, z = 0 and 3, s
 
 The coadd term and the source detector's logit must equal the internal network's. The other outputs, which the
 brightness term's null copies change, are compared with those this STRIDER recorded, with its seed rule
-(`strider.preprocess`).
+(`strider.preprocess`), for each peak-date scan: the full scan's under their plain names, the fast scan's (the
+default) under ``fast__``.
 
-``python -m strider.tests.test_reference`` records them again.
+``python -m strider.tests.test_reference`` records them again; ``... fast`` records only the fast scan's.
 """
 
 import platform
@@ -40,6 +41,9 @@ RECORDED = (
     "visits_used",
     "signal_to_noise",
 )
+# the best match and how clearly it wins: the outputs a change of peak-date scan moves most; the gaps of these
+# cases lie at least 0.02 from a level, far beyond any rounding, so the labels are compared on every machine
+MATCHES = ("best_match_class", "best_match_redshift", "next_best_class", "match_gap", "match_strength", "warnings")
 THREADS = 2  # the cases were made on 2 threads; more threads split the float32 sums differently
 
 
@@ -76,9 +80,17 @@ def arguments(arrays):
 
 
 def outputs(model, arrays):
-    """The outputs compared, by name."""
+    """The outputs compared, by name: numbers, then the match's text and numbers."""
     data, host = arguments(arrays)
     result = model.classify(*data, **host)
+    matched = {
+        "best_match_class": result.best_match[0],
+        "best_match_redshift": result.best_match[1],
+        "next_best_class": result.next_best_class,
+        "match_gap": result.match_gap,
+        "match_strength": result.match_strength,
+        "warnings": "; ".join(result.warnings),
+    }
     network = model._evaluate(model._prepare(*data))
     found = {name: getattr(result, name) for name in RECORDED}
     found |= {"coadd_term": network["coadd_term"], "evidence_sufficiency_logit": network["source_logit"]}
@@ -87,42 +99,72 @@ def outputs(model, arrays):
     found["flags"] = [found["flags"][name] for name in sorted(found["flags"])]
     found["class_redshifts"] = list(found["class_redshifts"].values())
     found["redshift_peaks"] = np.ravel(found["redshift_peaks"])
-    return {name: np.asarray(value, dtype=np.float64) for name, value in found.items()}
+    return {name: np.asarray(value, dtype=np.float64) for name, value in found.items()} | {
+        name: np.asarray(value) for name, value in matched.items()
+    }
 
 
-@pytest.fixture(scope="module")
-def model():
+@pytest.fixture(scope="module", params=["full", "fast"])
+def model(request):
     threads = torch.get_num_threads()
     torch.set_num_threads(THREADS)
-    yield strider.load_model(PACKAGE)
+    yield strider.load_model(PACKAGE, scan=request.param)
     torch.set_num_threads(threads)
+
+
+def recorded(stored, case, scan):
+    """A case's inputs and internal outputs, and the outputs recorded for ``scan``."""
+    arrays = {name.split("__", 1)[1]: stored[name] for name in stored.files if name.startswith(f"{case}__")}
+    fast = {name[len("fast__") :]: value for name, value in arrays.items() if name.startswith("fast__")}
+    arrays = {name: value for name, value in arrays.items() if not name.startswith("fast__")}
+    return arrays | fast if scan == "fast" else arrays
 
 
 @pytest.mark.parametrize("case", NAMES)
 def test_a_reference_case(model, case):
-    stored = np.load(CASES)
-    arrays = {name.split("__", 1)[1]: stored[name] for name in stored.files if name.startswith(f"{case}__")}
+    arrays = recorded(np.load(CASES), case, model.scan)
     found = outputs(model, arrays)
-    for name in INTERNAL + RECORDED:
-        np.testing.assert_allclose(found[name], arrays[name], err_msg=f"{case}: {name}", **tolerance(name))
+    for name in INTERNAL + RECORDED + ("best_match_redshift", "match_gap"):
+        np.testing.assert_allclose(
+            found[name], arrays[name], err_msg=f"{case} ({model.scan}): {name}", **tolerance(name)
+        )
+    for name in ("best_match_class", "next_best_class", "match_strength", "warnings"):
+        assert str(found[name]) == str(arrays[name]), f"{case} ({model.scan}): {name}"
 
 
-def record():
-    """Record this STRIDER's outputs for the stored cases again, keeping their inputs and the internal outputs."""
+def record_matches():
+    """Add the match outputs of both scans to the stored cases, leaving everything else as it was."""
     torch.set_num_threads(THREADS)
-    model = strider.load_model(PACKAGE)
     cases = np.load(CASES)
-    stored = {}
-    for case in NAMES:
-        arrays = {name.split("__", 1)[1]: cases[name] for name in cases.files if name.startswith(f"{case}__")}
-        arrays = {name: value for name, value in arrays.items() if name.startswith("input_") or name in INTERNAL}
-        found = outputs(model, arrays)
-        arrays |= {name: found[name] for name in RECORDED}
-        stored |= {f"{case}__{name}": value for name, value in arrays.items()}
-        difference = max(float(np.abs(found[name] - arrays[name]).max()) for name in INTERNAL)
-        print(case, "internal outputs, largest difference:", difference)
+    stored = {name: cases[name] for name in cases.files}
+    for scan in ("full", "fast"):
+        model = strider.load_model(PACKAGE, scan=scan)
+        prefix = "fast__" if scan == "fast" else ""
+        for case in NAMES:
+            found = outputs(model, recorded(cases, case, scan))
+            stored |= {f"{case}__{prefix}{name}": found[name] for name in MATCHES}
+    np.savez_compressed(CASES, **stored)
+
+
+def record(scans=("full", "fast")):
+    """Record this STRIDER's outputs for the stored cases again for ``scans``, keeping their inputs, the internal
+    outputs and the other scan's."""
+    torch.set_num_threads(THREADS)
+    cases = np.load(CASES)
+    stored = {name: cases[name] for name in cases.files}
+    for scan in scans:
+        model = strider.load_model(PACKAGE, scan=scan)
+        prefix = "fast__" if scan == "fast" else ""
+        for case in NAMES:
+            arrays = recorded(cases, case, "full")
+            found = outputs(model, arrays)
+            stored |= {f"{case}__{prefix}{name}": found[name] for name in RECORDED + MATCHES}
+            difference = max(float(np.abs(found[name] - arrays[name]).max()) for name in INTERNAL)
+            print(case, scan, "internal outputs, largest difference:", difference)
     np.savez_compressed(CASES, **stored)
 
 
 if __name__ == "__main__":
-    record()
+    import sys
+
+    record(tuple(sys.argv[1:]) or ("full", "fast"))

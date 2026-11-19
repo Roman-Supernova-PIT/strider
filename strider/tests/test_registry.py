@@ -39,3 +39,9 @@ def test_fetch_refuses_an_entry_without_a_full_sha256(monkeypatch):
     monkeypatch.setitem(registry.MODELS, "m", {"url": "https://example.org/m.tar.gz", "sha256": ""})
     with pytest.raises(ValueError, match="no full sha256"):
         registry.fetch("m")
+
+
+def test_name_of_drops_the_version():
+    assert registry.name_of("strider-15class-1.0") == "strider-15class"
+    assert registry.name_of("strider-synthetic-test-1.0") == registry.TEST_MODEL
+    assert registry.name_of("someone-else-2.0") == "someone-else-2.0"

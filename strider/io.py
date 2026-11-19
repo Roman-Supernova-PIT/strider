@@ -10,9 +10,10 @@ Results are written in the format the file's ending gives: ``.parquet``, one row
 in an HDF5 file (`write_evidence_maps`), and the redshift posteriors in qp's format (`write_redshift_curves`).
 """
 
+import hashlib
 import json
 import os
-import shutil
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass, field
 from importlib.resources import files
 from pathlib import Path
@@ -29,6 +30,8 @@ __all__ = [
     "Redshift",
     "load_example",
     "read_spectra",
+    "iter_spectra",
+    "input_fingerprint",
     "read_transient",
     "read_smdc",
     "write_spectra",
@@ -40,6 +43,17 @@ __all__ = [
 ]
 
 EXAMPLE = files("strider") / "data" / "example.parquet"
+SCHEMA_VERSION = 2
+# the stable codes of a result's warnings and flags, in the order a result lists them
+WARNING_CODES = (
+    "second_redshift",
+    "spectra_brightness_disagree",
+    "weak_source",
+    "several_redshift_peaks",
+    "untrained_subtypes",
+    "few_classes_trained",
+    "brightness_failed",
+)
 # a transient's table columns, each with the names it may have
 COLUMNS = {
     "mjd": ("mjd", "time"),
@@ -47,6 +61,7 @@ COLUMNS = {
     "flux": ("flux",),
     "error": ("error", "flux_err", "fluxerr"),
     "mask": ("mask",),
+    "visit_id": ("visit_id",),
     "host_redshift": ("host_redshift",),
     "host_redshift_error": ("host_redshift_error",),
 }
@@ -100,10 +115,10 @@ class Transient:
         ----------
         table : pandas.DataFrame, astropy.table.Table or dict of array_like
             The columns ``mjd``, ``wavelength`` in Å, ``flux`` and ``error``. Optional columns are ``mask``, True for
-            pixels to ignore, and ``host_redshift`` and ``host_redshift_error``, the same on every row. The column
-            ``time`` can stand for ``mjd``, and ``flux_err`` or ``fluxerr`` for ``error``; case does not matter.
-            The rows with one MJD are one visit. Astropy columns with units are converted: wavelength to Å, flux and
-            error to f_λ.
+            pixels to ignore, ``visit_id``, and ``host_redshift`` and ``host_redshift_error``, the same on every row.
+            The column ``time`` can stand for ``mjd``, and ``flux_err`` or ``fluxerr`` for ``error``; case does not
+            matter. The rows with one ``visit_id``, or without that column one MJD, are one visit. Astropy columns
+            with units are converted: wavelength to Å, flux and error to f_λ.
 
         Returns
         -------
@@ -132,14 +147,20 @@ class Transient:
             raise ValueError("the table has no rows")
         if not np.isfinite(mjd).all():
             raise ValueError("a row has no finite mjd; give every row the MJD of its visit")
-        dates, first = np.unique(mjd, return_index=True)
+        labels = mjd if found["visit_id"] is None else _labels(table[found["visit_id"]])
+        names, first = np.unique(labels, return_index=True)
         visits = []
-        for date in dates[np.argsort(first)]:
-            rows = mjd == date
+        for name in names[np.argsort(first)]:
+            rows = labels == name
+            dates = np.unique(mjd[rows])
+            if len(dates) > 1:
+                raise ValueError(f"visit {name} has {len(dates)} MJDs; give every row of a visit its one MJD")
             if len(np.unique(wavelength[rows])) < rows.sum():
-                raise ValueError(f"the rows at MJD {date} repeat a wavelength; give each visit its own MJD")
+                raise ValueError(
+                    f"the rows at MJD {dates[0]} repeat a wavelength; give each visit its own MJD or visit_id"
+                )
             visits.append(
-                Visit(wavelength[rows], flux[rows], error[rows], float(date), None if mask is None else mask[rows])
+                Visit(wavelength[rows], flux[rows], error[rows], float(dates[0]), None if mask is None else mask[rows])
             )
         host = []
         for key in ("host_redshift", "host_redshift_error"):
@@ -153,6 +174,14 @@ class Transient:
 def _floats(values):
     """Float64 values, NaN where a masked column has no value."""
     return np.ma.filled(np.ma.asarray(values, dtype=np.float64), np.nan)
+
+
+def _labels(values):
+    """Visit ids as text, refused if any is missing."""
+    values = np.ma.filled(np.ma.asarray(values, dtype=object), None)
+    if any(value is None or (isinstance(value, float) and np.isnan(value)) for value in values):
+        raise ValueError("a row has no visit_id; give every row the id of its visit, or leave the column out")
+    return np.array([str(value) for value in values])
 
 
 def _in_units(wavelength, flux, error):
@@ -173,15 +202,24 @@ def _in_units(wavelength, flux, error):
     )
 
 
-def _wrapped(label, parts, width=79):
-    """A card line of ``parts`` joined by " · ", continued on indented lines where it would pass ``width``."""
+def _wrapped(label, parts, separator=", ", width=79):
+    """A report line of ``parts`` joined by ``separator``, continued on indented lines where it would pass ``width``."""
     lines = [f"{label:<10}{parts[0]}"]
     for part in parts[1:]:
-        if len(lines[-1]) + 3 + len(part) > width:
+        if len(lines[-1]) + len(separator) + len(part) > width - len(separator.rstrip()):  # room for its mark
+            lines[-1] += separator.rstrip()
             lines.append(" " * 10 + part)
         else:
-            lines[-1] += f" · {part}"
+            lines[-1] += separator + part
     return lines
+
+
+TIERS = ((0.9, "green"), (0.7, "yellow"), (0.5, "orange"), (0.0, "red"))
+
+
+def _tier(probability):
+    """The colour of a class probability: green at 0.9 or more, yellow from 0.7, orange from 0.5, red below."""
+    return next(name for floor, name in TIERS if probability >= floor)
 
 
 def _percent(probability):
@@ -202,12 +240,14 @@ class Redshift(NamedTuple):
 class Classification:
     """The result for one transient. :doc:`/results` explains each field.
 
-    ``print(result)`` prints its card (`card`), and ``result.plot()`` draws its figure.
+    ``print(result)`` prints its report (`report`), and ``result.plot()`` draws its figure.
 
     Parameters
     ----------
     model, fingerprint : str
         The model's name, and a code that identifies it: its network, brightness term, priors and settings.
+    brightness_scan : str
+        How the brightness comparison searched peak dates: ``fast`` or ``full``.
     class_probabilities : dict of str to float
         The probability of each class.
     equal_prior_probabilities : dict of str to float
@@ -273,10 +313,23 @@ class Classification:
     redshift_range : tuple of float or None
         The redshift range the result was restricted to (``redshift_range`` of `strider.Model.classify`), or None.
         The redshifts and intervals then lie inside it.
+    warning_codes : list of str
+        A stable code for each warning and for each flag that is set, in the order of `strider.io.WARNING_CODES`,
+        for tallying results by code rather than by text.
+    light_curve_check : dict
+        Whether the light curve's errors are too small for its scatter (`strider.brightness.check_errors`):
+        ``status``, ``too_few_points`` (too few faint points to tell), ``fine``, ``too_small`` (found too small, left
+        as given), ``corrected`` (found too small and scaled up, with ``light_curve_errors="correct"`` of
+        `strider.Model.classify`) or ``failed``; ``scatter``, the scatter over what the errors allow, and
+        ``scatter_squared_se``, the uncertainty of its square; the faint ``points`` it used; the ``scale`` the errors
+        would need; the ``scale_used``; and the reason, if the check ``failed``.
+    brightness_failure : str or None
+        Why the brightness term could not be computed, if it could not (``brightness_failed``).
     """
 
     model: str
     fingerprint: str
+    brightness_scan: str
     class_probabilities: dict[str, float]
     equal_prior_probabilities: dict[str, float]
     p_ia: float
@@ -306,9 +359,12 @@ class Classification:
     dropped_visits: dict[int, str] = field(default_factory=dict)
     error_scale: float = 1.0
     redshift_range: tuple[float, float] | None = None
+    warning_codes: list[str] = field(default_factory=list)
+    light_curve_check: dict = field(default_factory=dict)
+    brightness_failure: str | None = None
 
     def __str__(self) -> str:
-        return self.card()
+        return self.report()
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -319,24 +375,47 @@ class Classification:
         top, probability = self._ranked()[0]
         return f"<Classification {top} {_percent(probability)}, z {self.redshift:.2f}>"
 
+    def report(self, name: str | None = None) -> str:
+        """Return the result as a short report: the most likely classes, the redshift and its 68% range, the match
+        strength (high, medium or low) and any warnings, the data, and any checks that need attention. ``name`` heads
+        it."""
+        head = f"STRIDER: {name or 'transient'}"
+        classes, redshift, data, checks = self._report_parts()
+        lines = [
+            head if len(head) <= 79 else head[:78] + "…",
+            f"{'Class':<10}{classes}",
+            f"{'Redshift':<10}{redshift}",
+            *_wrapped("Match", [self.match_strength, *self.warnings]),
+            f"{'Data':<10}{data}",
+        ]
+        if checks:
+            lines += _wrapped("Checks", checks, "; ")
+        return "\n".join(lines)
+
     def card(self, name: str | None = None) -> str:
-        """Return the result as a short card: the most likely classes, the redshift and its 68% range, the match
-        strength and any warnings, the data, and any checks that need attention. ``name`` heads it."""
+        """The old name of `report`, kept so code written for STRIDER 0.1 still runs; it returns the report's text."""
+        return self.report(name)
+
+    def _report_parts(self):
+        """The report's classes, redshift, data and checks (a list), as the report and the figure write them."""
         low, high = self.redshift_68
         digits = 3 if high - low < 0.05 else 2
-        head = f"STRIDER · {name or 'transient'}"
-        room = 77 - len(self.model)
-        head = head if len(head) <= room else head[: room - 1] + "…"
         ranked = self._ranked()[:3]
-        classes = " · ".join(f"{label} {_percent(p)}" for n, (label, p) in enumerate(ranked) if n == 0 or p >= 0.01)
+        classes = "   ".join(f"{label} {_percent(p)}" for n, (label, p) in enumerate(ranked) if n == 0 or p >= 0.01)
+        redshift = (
+            f"{self.redshift:.{digits}f} ({_percent(self.redshift_probability)} within 0.1),"
+            f" 68% range {low:.{digits}f}–{high:.{digits}f}"
+        )
         visits = len(self.visits_used)
         data = f"{visits} visit{'s' if visits > 1 else ''}"
         if visits > 1:
             data += f" over {self.days_observed:.0f} days" if self.days_observed >= 1.0 else " on one night"
         if np.isfinite(self.signal_to_noise):
-            data += f" · S/N {max(self.signal_to_noise, 0.0):.1f}"
+            data += f", S/N {max(self.signal_to_noise, 0.0):.1f}"
         if self.error_scale != 1.0:
-            data += f" · errors × {self.error_scale:.2f}"
+            data += f", errors × {self.error_scale:.2f}"
+        if self.light_curve_check.get("status") == "corrected":
+            data += f", light-curve errors × {self.light_curve_check['scale_used']:.2f}"
         checks = []
         if self.flags["weak_source"]:
             checks.append(f"weak source ({_percent(self.source_probability)})")
@@ -347,23 +426,13 @@ class Classification:
             checks.append(f"untrained subtypes {_percent(self.untrained_share)}")
         if self.flags["brightness_failed"]:
             checks.append("brightness failed, spectra alone")
-        lines = [
-            head.ljust(79 - len(self.model)) + self.model,
-            f"{'Class':<10}{classes}",
-            f"{'Redshift':<10}{self.redshift:.{digits}f} ({_percent(self.redshift_probability)} within 0.1)"
-            f" · 68% range {low:.{digits}f}–{high:.{digits}f}",
-            *_wrapped("Match", [f"{self.match_strength} strength", *self.warnings]),
-            f"{'Data':<10}{data}",
-        ]
-        if checks:
-            lines += _wrapped("Checks", checks)
-        return "\n".join(lines)
+        return classes, redshift, data, checks
 
     def plot(self, path: str | os.PathLike | None = None, name: str | None = None):
-        """Draw the result's figure: the spectra and their combination, the best-matching references of the two
-        most likely classes, each visit's brightness in the four bands against SN Ia's light curves fitted to it,
-        every class at every redshift, and the class probabilities and the redshift posterior of SN Ia and of the
-        other classes. Needs matplotlib (``pip install "roman-snpit-strider[plot]"``).
+        """Draw the result's figure: the result as its report gives it; the combined spectrum over the spread of the
+        spectra; the combined spectrum against the best match's model spectrum; each visit's brightness in the four
+        bands against the best match's light curves fitted to it; every class at every redshift; and the class
+        probabilities and the redshift posterior of SN Ia and of the other classes.
 
         Parameters
         ----------
@@ -423,6 +492,11 @@ class Classification:
             posterior,
         )
 
+    def __setstate__(self, state):
+        # pickled by STRIDER 0.1, which had only the full scan, and no warning codes or error check
+        older = {"brightness_scan": "full", "warning_codes": [], "light_curve_check": {}, "brightness_failure": None}
+        self.__dict__.update(older | state)
+
     def to_dict(self) -> dict:
         """Return the result as a dictionary that `json.dumps` can write, without the evidence map."""
         ia = self.redshift_given("Ia")
@@ -457,6 +531,19 @@ class Classification:
         )
 
 
+@dataclass
+class _Outcome:
+    """One object of a batch: its result, or the reason it has none; its input's fingerprint and the MJD of its last
+    visit used; and what classifying it took, None where it was not measured (for transients scored together)."""
+
+    result: "Classification | str"
+    input_fingerprint: str | None = None
+    last_mjd_used: float | None = None
+    seconds: float | None = None
+    cpu_seconds: float | None = None
+    peak_memory_mb: float | None = None
+
+
 def _json_safe(value):
     """``value`` with NaN numbers replaced by None, which JSON can hold."""
     if isinstance(value, dict):
@@ -469,7 +556,11 @@ def _json_safe(value):
 
 
 REQUIRED = ("object_id", "mjd", "wavelength", "flux", "error")
-OPTIONAL = ("mask", "host_redshift", "host_redshift_error")
+OPTIONAL = ("visit_id", "mask", "host_redshift", "host_redshift_error")
+WAVELENGTH_UNITS = {"angstrom": 1.0, "nm": 10.0, "micron": 1e4}
+FLUX_DENSITIES = ("f_lambda", "f_nu")
+SPEED_OF_LIGHT = 2.99792458e18  # Å/s
+FINGERPRINT_FORMAT = b"strider-input-1"
 
 
 def load_example(batch: bool = False) -> "Transient | dict[str, Transient]":
@@ -479,56 +570,279 @@ def load_example(batch: bool = False) -> "Transient | dict[str, Transient]":
     return objects if batch else objects["sn_ia"]
 
 
-def read_spectra(path: str | os.PathLike) -> dict[str, Transient]:
-    """Read a table of spectra. Returns each transient by object id, with its visits in table order.
+def read_spectra(
+    path: str | os.PathLike,
+    columns: dict[str, str] | None = None,
+    wavelength_unit: str = "angstrom",
+    flux_density: str = "f_lambda",
+) -> dict[str, Transient]:
+    """Read a table of spectra, its rows in any order. Returns each transient by object id, with its visits in table
+    order. `iter_spectra` reads a large table one transient at a time, and explains the arguments.
 
     Raises
     ------
     ValueError
-        If a column is missing, a visit has no MJD, or an object has different host redshifts on different rows.
+        If a column is missing, a row has no object id, a visit has no MJD, or an object has different host
+        redshifts on different rows.
     """
-    import pyarrow as pa
-    import pyarrow.parquet as pq
+    table = _SpectraTable(path, columns, wavelength_unit, flux_density)
+    pieces = {}
+    for key, piece in table.pieces():
+        pieces.setdefault(key, []).append(piece)
+    objects = {}
+    for key, parts in pieces.items():
+        try:
+            objects[key] = table.transient(parts)
+        except ValueError as error:
+            raise ValueError(f"{path}: object {key}: {error}") from None
+    return objects
 
-    source = pq.ParquetFile(path)
-    present = set(source.schema_arrow.names)
-    missing = [name for name in REQUIRED if name not in present]
-    if missing:
-        raise ValueError(
-            f"{path} is missing the column(s) {', '.join(missing)}. A table of spectra needs one row per "
-            f"visit, with the columns {', '.join(REQUIRED)}, and optionally {', '.join(OPTIONAL)}"
-        )
-    columns = [*REQUIRED, *(name for name in OPTIONAL if name in present)]
-    objects, hosts = {}, {}
-    for batch in source.iter_batches(columns=columns):
-        keys = [str(key) for key in batch.column("object_id").to_pylist()]
-        mjd = batch.column("mjd").to_numpy(zero_copy_only=False)
-        lists = {name: _rows(batch.column(name)) for name in ("wavelength", "flux", "error", "mask") if name in columns}
-        host = [
-            batch.column(name).cast(pa.float64()).to_numpy(zero_copy_only=False)
-            if name in columns  # all null: NaN
-            else np.full(len(keys), np.nan)
-            for name in ("host_redshift", "host_redshift_error")
-        ]
-        for row, key in enumerate(keys):
-            if not np.isfinite(mjd[row]):
-                raise ValueError(f"{path}: a visit of object {key} has no finite mjd; give every row its MJD")
-            mask = lists["mask"][row] if "mask" in lists else None
-            visit = Visit(
-                lists["wavelength"][row],
-                lists["flux"][row],
-                lists["error"][row],
-                float(mjd[row]),
-                None if mask is None else mask.astype(bool),
+
+def iter_spectra(
+    path: str | os.PathLike,
+    columns: dict[str, str] | None = None,
+    wavelength_unit: str = "angstrom",
+    flux_density: str = "f_lambda",
+) -> Iterator[tuple[str, "Transient | str"]]:
+    """Read a table of spectra one transient at a time, so that a table of any size can be classified.
+
+    The table is a parquet file with one row per visit, its ``wavelength``, ``flux`` and ``error`` given as lists, or
+    one row per pixel, each of them a number. With one row per pixel, the rows with one ``visit_id`` are one visit,
+    or, without that column, the rows with one ``mjd``. The rows of each object must be together; sort the table by
+    object id first if they are not.
+
+    Parameters
+    ----------
+    path : str or path-like
+        The parquet file.
+    columns : dict of str to str, optional
+        The file's name for any of STRIDER's columns that it names differently, such as
+        ``{"object_id": "SNID", "error": "flux_error"}``.
+    wavelength_unit : str
+        ``angstrom``, ``nm`` or ``micron``.
+    flux_density : str
+        ``f_lambda``, flux per unit wavelength, or ``f_nu``, flux per unit frequency, in any units. ``f_nu`` flux and
+        errors are converted to ``f_lambda`` on a common scale.
+
+    Yields
+    ------
+    tuple of str and (strider.Transient or str)
+        Each object id and its transient, or the reason it cannot be read.
+
+    Raises
+    ------
+    ValueError
+        If a column is missing, a row has no object id, or an object's rows are not together.
+    """
+    table = _SpectraTable(path, columns, wavelength_unit, flux_density)
+    current, parts, done = None, [], set()
+    for key, piece in table.pieces():
+        if key == current:
+            parts.append(piece)
+            continue
+        if current is not None:
+            yield current, table.transient_or_reason(parts)
+        if key in done:
+            raise ValueError(
+                f"{path}: the rows of object {key} are not together; sort the table by object id, or read it with "
+                "read_spectra, which holds the whole table"
             )
-            objects.setdefault(key, []).append(visit)
-            given = tuple(None if np.isnan(value) else float(value) for value in (host[0][row], host[1][row]))
-            if hosts.setdefault(key, given) != given:
+        done.add(key)
+        current, parts = key, [piece]
+    if current is not None:
+        yield current, table.transient_or_reason(parts)
+
+
+class _SpectraTable:
+    """A table of spectra as `read_spectra` and `iter_spectra` read it: its columns by STRIDER's names, its layout
+    and its units, checked once; its rows as pieces of one object each; and the transient those pieces make."""
+
+    batch_rows = {"visits": 256, "pixels": 65536}  # rows read at a time
+
+    def __init__(self, path, columns, wavelength_unit, flux_density):
+        import pyarrow.parquet as pq
+
+        if wavelength_unit not in WAVELENGTH_UNITS:
+            raise ValueError(f"wavelength_unit must be one of {', '.join(WAVELENGTH_UNITS)}, not {wavelength_unit!r}")
+        if flux_density not in FLUX_DENSITIES:
+            raise ValueError(f"flux_density must be one of {', '.join(FLUX_DENSITIES)}, not {flux_density!r}")
+        self.path, self.file = path, pq.ParquetFile(path)
+        self.wavelength_unit, self.flux_density = wavelength_unit, flux_density
+        self.columns = self._found(columns or {})
+        self.layout = self._layout()
+
+    def _found(self, columns):
+        """The file's column for each of STRIDER's names it has: from ``columns``, or else the name itself."""
+        import pyarrow as pa
+
+        names = (*REQUIRED, *OPTIONAL)
+        unknown = [name for name in columns if name not in names]
+        if unknown:
+            raise ValueError(f"cannot map {', '.join(unknown)}: STRIDER's column names are {', '.join(names)}")
+        present = set(self.file.schema_arrow.names)
+        absent = [f"{name}={column}" for name, column in columns.items() if column not in present]
+        if absent:
+            raise ValueError(f"{self.path} has no column for {', '.join(absent)}")
+        empty = {field.name for field in self.file.schema_arrow if pa.types.is_null(field.type)}
+        found = {name: columns.get(name, name) for name in names}
+        found = {
+            name: column
+            for name, column in found.items()
+            if column in present and not (name in OPTIONAL and column in empty)  # an empty column is no column
+        }
+        shared = sorted({column for column in found.values() if list(found.values()).count(column) > 1})
+        if shared:
+            raise ValueError(f"{self.path}: the column(s) {', '.join(shared)} are given for two of STRIDER's names")
+        missing = [name for name in REQUIRED if name not in found]
+        if missing:
+            raise ValueError(
+                f"{self.path} is missing the column(s) {', '.join(missing)}. A table of spectra needs one row per "
+                f"visit, with the columns {', '.join(REQUIRED)}, and optionally {', '.join(OPTIONAL)}; give "
+                "your own names for them with columns="
+            )
+        return found
+
+    def _layout(self):
+        """``visits`` if the spectra are lists, one row per visit, or ``pixels`` if they are numbers."""
+        schema = self.file.schema_arrow
+        spectra = [name for name in ("wavelength", "flux", "error", "mask") if name in self.columns]
+        listed = [_is_list(schema.field(self.columns[name]).type) for name in spectra]
+        if all(listed):
+            return "visits"
+        if not any(listed):
+            return "pixels"
+        raise ValueError(
+            f"{self.path}: {', '.join(spectra)} must all be lists (one row per visit) or all numbers (one row per "
+            "pixel)"
+        )
+
+    def pieces(self):
+        """Each run of rows of one object, in table order, as the object id and its columns by STRIDER's name."""
+        start, rows = 0, self.batch_rows[self.layout]
+        for batch in self.file.iter_batches(batch_size=rows, columns=list(self.columns.values())):
+            keys = batch.column(self.columns["object_id"]).to_pylist()
+            empty = [n for n, key in enumerate(keys) if key is None or str(key) == ""]
+            if empty:
                 raise ValueError(
-                    f"{path}: object {key} has different host redshifts on different rows; give the same "
-                    "host_redshift and host_redshift_error on every row of an object"
+                    f"{self.path}: row {start + empty[0]} has no object_id; give every row its object's id"
                 )
-    return {key: Transient(visits, *hosts[key]) for key, visits in objects.items()}
+            keys = np.array([str(key) for key in keys], dtype=object)
+            values = {
+                name: _ids(batch.column(column)) if name == "visit_id" else _values(batch.column(column))
+                for name, column in self.columns.items()
+                if name != "object_id"
+            }
+            edges = [0, *(np.flatnonzero(keys[1:] != keys[:-1]) + 1), len(keys)]
+            for first, last in zip(edges[:-1], edges[1:]):
+                yield keys[first], {name: column[first:last] for name, column in values.items()}
+            start += len(keys)
+
+    def transient_or_reason(self, parts):
+        """The transient the pieces of one object make, or the reason they make none."""
+        try:
+            return self.transient(parts)
+        except ValueError as error:
+            return f"ValueError: {error}"
+
+    def transient(self, parts):
+        """The transient the pieces of one object make, its units converted.
+
+        Raises
+        ------
+        ValueError
+            If its rows do not make a transient: a visit with no finite MJD, host redshifts that differ between rows,
+            or spectra of different lengths.
+        """
+        joined = {name: _joined([part[name] for part in parts]) for name in parts[0]}
+        host = []
+        for name in ("host_redshift", "host_redshift_error"):
+            values = joined.get(name, np.array([np.nan]))
+            if np.isinf(values).any():
+                raise ValueError(f"its {name} is infinite; give a finite value, or leave it empty")
+            given = np.unique(values[np.isfinite(values)])
+            if len(given) > 1 or (len(given) and not np.isfinite(values).all()):
+                raise ValueError(
+                    "its host redshift differs between rows; give the same host_redshift and host_redshift_error on "
+                    "every row of an object"
+                )
+            host.append(float(given[0]) if len(given) else None)
+        if self.layout == "pixels":
+            wavelength, flux, error = self._converted(joined["wavelength"], joined["flux"], joined["error"])
+            spectra = {"wavelength": wavelength, "flux": flux, "error": error}
+            others = {name: joined[name] for name in ("mjd", "mask", "visit_id") if name in joined}
+            return Transient(Transient.from_table(spectra | others).visits, *host)
+        visits = []
+        for row, date in enumerate(joined["mjd"]):
+            if not np.isfinite(date):
+                raise ValueError("a visit has no finite mjd; give every row its MJD")
+            spectra = [joined[name][row] for name in ("wavelength", "flux", "error")]
+            mask = joined["mask"][row] if "mask" in joined else None
+            if any(values is None for values in spectra):
+                raise ValueError(f"the visit at MJD {date} has no wavelength, flux or error")
+            if len({len(values) for values in spectra + ([] if mask is None else [mask])}) > 1:
+                raise ValueError(f"the visit at MJD {date} has wavelength, flux, error or mask of different lengths")
+            visits.append(Visit(*self._converted(*spectra), float(date), None if mask is None else mask.astype(bool)))
+        return Transient(visits, *host)
+
+    def _converted(self, wavelength, flux, error):
+        """Wavelength in Å, and flux and error per unit wavelength."""
+        wavelength = np.asarray(wavelength, dtype=np.float64) * WAVELENGTH_UNITS[self.wavelength_unit]
+        flux, error = np.asarray(flux, dtype=np.float64), np.asarray(error, dtype=np.float64)
+        if self.flux_density == "f_nu":
+            factor = SPEED_OF_LIGHT / wavelength**2
+            flux, error = flux * factor, error * factor
+        return wavelength, flux, error
+
+
+def _joined(pieces):
+    """The pieces of a column, one after another: numbers as one array, list rows as one list."""
+    if isinstance(pieces[0], np.ndarray):
+        return np.concatenate(pieces)
+    return [row for piece in pieces for row in piece]
+
+
+def _is_list(type_):
+    import pyarrow as pa
+
+    return pa.types.is_list(type_) or pa.types.is_large_list(type_) or pa.types.is_fixed_size_list(type_)
+
+
+def _ids(column):
+    """A column of ids as text, None where null or NaN, never through floating point, so large integers stay exact."""
+    missing = lambda value: value is None or (isinstance(value, float) and np.isnan(value))  # noqa: E731
+    return np.array([None if missing(value) else str(value) for value in column.to_pylist()], dtype=object)
+
+
+def _values(column):
+    """A parquet column as numpy: a list column as each row's array (None where null), a number column as float64
+    (NaN where null), and any other column as Python objects."""
+    import pyarrow as pa
+
+    if _is_list(column.type):
+        return _rows(column)
+    if pa.types.is_floating(column.type) or pa.types.is_integer(column.type) or pa.types.is_null(column.type):
+        return _floats(column.cast(pa.float64()).to_numpy(zero_copy_only=False))
+    return np.array(column.to_pylist(), dtype=object)
+
+
+def input_fingerprint(transient: Transient) -> str:
+    """A code that identifies a transient's input exactly: each visit's date, wavelengths, fluxes, errors and mask in
+    input order, and the host redshift. It is the sha256 of a fixed byte layout, ``strider-input-1``, so it is the
+    same on any machine."""
+    hashed = hashlib.sha256(FINGERPRINT_FORMAT)
+    for position, visit in enumerate(transient.visits):
+        hashed.update(b"V" + np.array(position, "<u8").tobytes() + np.array(visit.mjd, "<f8").tobytes())
+        for values in (visit.wavelength, visit.flux, visit.error):
+            values = np.ascontiguousarray(values, dtype="<f8")
+            hashed.update(np.array(len(values), "<u8").tobytes() + values.tobytes())
+        if visit.mask is None:
+            hashed.update(b"M0")
+        else:
+            mask = np.ascontiguousarray(np.asarray(visit.mask, dtype=bool), dtype="u1")  # as preparation reads it
+            hashed.update(b"M1" + np.array(len(mask), "<u8").tobytes() + mask.tobytes())
+    for value in (transient.host_redshift, transient.host_redshift_error):
+        hashed.update(np.array(np.nan if value is None else value, "<f8").tobytes())
+    return hashed.hexdigest()
 
 
 def _rows(column):
@@ -674,33 +988,58 @@ def results_schema(model, summary: bool = False):
     if not summary:
         fields.append(("redshift_posterior", pa.list_(pa.float64())))
     fields.append(("error_scale", pa.float64()))
+    fields.append(("brightness_scan", pa.string()))
+    fields += [
+        ("light_curve_check", pa.string()),
+        ("light_curve_scatter", pa.float64()),
+        ("light_curve_error_scale", pa.float64()),
+        ("light_curve_error_scale_used", pa.float64()),
+        ("brightness_failure", pa.string()),
+        ("status", pa.string()),
+        ("warning_codes", text),
+        ("input_fingerprint", pa.string()),
+        ("n_spectra_used", pa.int64()),
+        ("last_mjd_used", pa.float64()),
+        ("settings_fingerprint", pa.string()),
+        ("seconds", pa.float64()),
+        ("cpu_seconds", pa.float64()),
+        ("peak_memory_mb", pa.float64()),
+        ("schema_version", pa.int64()),
+    ]
     grid = {"redshift_grid": model.redshift_grid, "redshift_cell_widths": model.widths}
     metadata = {key: json.dumps(np.asarray(values, float).tolist()) for key, values in grid.items()}
-    return pa.schema(fields, metadata=metadata)
+    return pa.schema(fields, metadata=metadata | {"schema_version": str(SCHEMA_VERSION)})
 
 
-def results_table(results: dict[str, "Classification | str"], model, summary: bool = False):
+def results_table(
+    results: dict[str, "Classification | str"], model, summary: bool = False, settings_fingerprint: str | None = None
+):
     """Return a pyarrow table of results, with one row per object.
 
     ``results`` maps each object id to its `strider.Classification`, or to the reason it could not be classified.
     :doc:`/results` lists the columns. A ``summary`` table (`results_schema`) is the one a CSV file holds.
+    ``settings_fingerprint`` is the run's (`strider.runs.run_record`), if it is part of one.
     """
     import pyarrow as pa
 
     from . import __version__
 
     rows = []
-    for key, result in results.items():
+    for key, given in results.items():
+        outcome = given if isinstance(given, _Outcome) else _Outcome(given)
+        result = outcome.result
         row = {
             "object_id": str(key),
             "model": model.name,
             "fingerprint": model.fingerprint,
+            "brightness_scan": model.scan,
             "package_sha256": model.files_sha256,
             "strider_version": __version__,
-        }
+        } | _run_fields(outcome, settings_fingerprint)
         if isinstance(result, str):
             rows.append(row | {"failure": result})
             continue
+        row["brightness_scan"] = result.brightness_scan  # the result's own, which a model of the other scan may write
         dropped = [f"{index}: {reason}" for index, reason in result.dropped_visits.items()]
         second_peak = result.redshift_peaks[1] if len(result.redshift_peaks) > 1 else (None, None)
         redshifts = {}
@@ -739,7 +1078,10 @@ def results_table(results: dict[str, "Classification | str"], model, summary: bo
                 "dropped_visits": "; ".join(dropped) if summary else dropped,
                 "redshift_posterior": np.asarray(result.redshift_posterior, dtype=np.float64).tolist(),
                 "error_scale": result.error_scale,
+                "warning_codes": "; ".join(result.warning_codes) if summary else list(result.warning_codes),
+                "brightness_failure": result.brightness_failure,
             }
+            | _light_curve_fields(result.light_curve_check)
             | {f"probability_{name}": value for name, value in result.class_probabilities.items()}
             | {f"equal_prior_{name}": value for name, value in result.equal_prior_probabilities.items()}
         )
@@ -747,27 +1089,61 @@ def results_table(results: dict[str, "Classification | str"], model, summary: bo
     return pa.Table.from_pylist([{name: row.get(name) for name in schema.names} for row in rows], schema=schema)
 
 
+def _light_curve_fields(check):
+    """A result's light-curve error check (`Classification.light_curve_check`) as columns of a results row."""
+    return {
+        "light_curve_check": check.get("status"),
+        "light_curve_scatter": check.get("scatter"),
+        "light_curve_error_scale": check.get("scale"),
+        "light_curve_error_scale_used": check.get("scale_used"),
+    }
+
+
+def _run_fields(outcome, settings_fingerprint=None):
+    """The columns of a results row that say how its object was run: its status, its input, its run's settings,
+    what it took, and the schema version."""
+    result = outcome.result
+    failed = isinstance(result, str)
+    return {
+        "status": "failed" if failed else "spectra_only" if result.flags["brightness_failed"] else "ok",
+        "input_fingerprint": outcome.input_fingerprint,
+        "n_spectra_used": None if failed else len(result.visits_used),
+        "last_mjd_used": outcome.last_mjd_used,
+        "settings_fingerprint": settings_fingerprint,
+        "seconds": outcome.seconds,
+        "cpu_seconds": outcome.cpu_seconds,
+        "peak_memory_mb": outcome.peak_memory_mb,
+        "schema_version": SCHEMA_VERSION,
+    }
+
+
 class ResultsFile:
     """A file of results, written a batch at a time, in the format its ending gives: ``.parquet``, ``.csv`` or
-    ``.json``."""
+    ``.json``.
+
+    A ``.parquet`` file is a run (`strider.runs`): its results are saved a part at a time in ``<path>.parts``, and
+    joined into the file when it is closed complete. ``record`` is the run's record (`strider.runs.run_record`), and
+    ``resume`` carries on a run that stopped, from its parts; ``saved`` holds the input fingerprint of each object
+    they hold.
+    """
 
     FORMATS = (".parquet", ".csv", ".json")
 
-    def __init__(self, path: str | os.PathLike, model):
+    def __init__(self, path: str | os.PathLike, model, record: dict | None = None, resume: bool = False):
         import pyarrow.csv
+
+        from .runs import Parts, run_record
 
         self.path, self.model, self.format = Path(path), model, Path(path).suffix.lower()
         if self.format not in self.FORMATS:
             raise ValueError(f"cannot write results to {path}; give a file ending in {', '.join(self.FORMATS)}")
-        self.objects = {}
-        if self.format == ".parquet":  # whole parquet files, one per write, so a killed batch keeps what it wrote
-            self.parts, self.count = self.path.with_name(self.path.name + ".parts"), 0
-            if self.parts.exists():
-                raise ValueError(
-                    f"{self.parts} is left from a batch that stopped: read its parquet files "
-                    "(pyarrow.parquet.read_table) or remove it first"
-                )
-            self.parts.mkdir()
+        if resume and self.format != ".parquet":
+            raise ValueError(f"cannot resume {path}: only a .parquet output is saved a part at a time")
+        self.record = record or run_record(model)
+        self.objects, self.saved = {}, {}
+        if self.format == ".parquet":
+            self.parts = Parts(self.path, results_schema(model), self.record, resume)
+            self.saved = self.parts.saved
         elif self.format == ".csv":
             self.writer = pyarrow.csv.CSVWriter(self.path, results_schema(model, summary=True))
 
@@ -776,39 +1152,47 @@ class ResultsFile:
         if self.format == ".json":
             from . import __version__
 
-            for key, result in results.items():
+            for key, given in results.items():
                 if str(key) in self.objects:
                     raise ValueError(f"two transients have the id {str(key)!r}; give each a distinct id")
+                outcome = given if isinstance(given, _Outcome) else _Outcome(given)
+                result = outcome.result
                 found = (
-                    {"failure": result, "model": self.model.name, "fingerprint": self.model.fingerprint}
+                    {
+                        "failure": result,
+                        "model": self.model.name,
+                        "fingerprint": self.model.fingerprint,
+                        "brightness_scan": self.model.scan,
+                    }
                     if (isinstance(result, str))
                     else result.to_dict()
                 )
-                self.objects[str(key)] = found | {
-                    "strider_version": __version__,
-                    "package_sha256": self.model.files_sha256,
-                }
+                self.objects[str(key)] = (
+                    found
+                    | {"strider_version": __version__, "package_sha256": self.model.files_sha256}
+                    | _run_fields(outcome, self.record["settings_fingerprint"])
+                )
         elif self.format == ".parquet":
-            import pyarrow.parquet as pq
-
-            pq.write_table(results_table(results, self.model), self.parts / f"part-{self.count:06d}.parquet")
-            self.count += 1
+            self.parts.write(
+                results_table(results, self.model, settings_fingerprint=self.record["settings_fingerprint"])
+            )
         else:
-            self.writer.write_table(results_table(results, self.model, summary=True))
+            self.writer.write_table(
+                results_table(
+                    results, self.model, summary=True, settings_fingerprint=self.record["settings_fingerprint"]
+                )
+            )
 
-    def close(self) -> None:
-        """Finish the file."""
+    def close(self, complete: bool = True, seen=None) -> None:
+        """Finish the file. A ``.parquet`` run is joined only if it is ``complete``, every object of its input
+        ``seen`` done; otherwise its parts are kept, to resume."""
         if self.format == ".json":
             self.path.write_text(json.dumps(self.objects, indent=1) + "\n")
         elif self.format == ".parquet":
-            import pyarrow.parquet as pq
-
-            joined = self.path.with_name(self.path.name + ".tmp")
-            with pq.ParquetWriter(joined, results_schema(self.model)) as writer:
-                for part in sorted(self.parts.glob("part-*.parquet")):
-                    writer.write_table(pq.read_table(part))
-            os.replace(joined, self.path)
-            shutil.rmtree(self.parts)
+            if complete:
+                self.parts.finish(seen)
+            else:
+                self.parts.close()
         else:
             self.writer.close()
 
@@ -846,10 +1230,17 @@ class EvidenceMapsFile:
         self.file["redshift_grid"], self.file["redshift_cell_widths"] = model.redshift_grid, model.widths
         self.file["log_survey_prior"] = model.prior["survey_mass"]
         self.file.attrs["model"], self.file.attrs["fingerprint"] = model.name, model.fingerprint
+        self.file.attrs["brightness_scan"] = model.scan
 
     def write(self, results: dict[str, "Classification | str"]) -> None:
         """Add the transients classified, by object id."""
         found = {str(key): result for key, result in results.items() if not isinstance(result, str)}
+        other = [key for key, result in found.items() if result.brightness_scan != self.file.attrs["brightness_scan"]]
+        if other:
+            raise ValueError(
+                f"{other[0]} was classified with the {found[other[0]].brightness_scan} scan, and this file holds "
+                f"the {self.file.attrs['brightness_scan']} scan's evidence maps"
+            )
         start = len(self.ids)
         for dataset in (self.maps, self.ids, self.scales):
             dataset.resize(start + len(found), axis=0)

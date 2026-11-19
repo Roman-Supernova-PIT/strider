@@ -18,8 +18,8 @@ A visit is one prism spectrum. For each pixel of each visit, STRIDER needs:
 
 Visits can come in any order. With one visit, any MJD will do. STRIDER ignores pixels whose flux or error is not
 finite, or whose error is not positive. A visit should cover the model's wavelength range, given on its model card.
-One up to about 130 Å short at the blue end or 320 Å at the red end is still used, and the part it misses counts as
-not measured. One further short is left out, and the result says why.
+A visit up to about 130 Å short of it at the blue end, or 320 Å at the red end, is still used, and the part it misses
+counts as not measured. A visit further short is left out, and the result says why.
 
 One transient
 -------------
@@ -42,10 +42,11 @@ Other inputs work the same way:
 - A pandas or astropy table: ``model.classify(table)``.
 - Lists with one array per visit: ``model.classify(wavelength, flux, error, mjd)``.
 - Files from the Roman SMDC, one per visit. They do not hold the date, so give it:
-  ``strider.io.read_smdc(["visit1.h5", "visit2.h5"], mjd=[61000.1, 61010.3])``. This needs h5py.
+  ``strider.io.read_smdc(["visit1.h5", "visit2.h5"], mjd=[61000.1, 61010.3])``. This needs h5py. The command line
+  does not read them; ``strider.io.write_spectra`` writes a table it reads (below).
 
 In a CSV, ECSV, pandas or astropy table of one transient, ``time`` can stand for ``mjd``, and ``flux_err`` or
-``fluxerr`` for ``error``. A parquet table of spectra needs the exact names.
+``fluxerr`` for ``error``. A parquet table of spectra can use names of its own (below).
 
 Many transients
 ---------------
@@ -63,11 +64,36 @@ of ``wavelength``, ``flux``, ``error`` and ``mask`` is a list. Write such a tabl
     write_spectra({"my-transient": Transient(visits)}, "spectra.parquet")
     results = model.classify_many(read_spectra("spectra.parquet"), "results.parquet", plots="figures")
 
-The results file's ending sets its format. Use ``.parquet`` for many transients and long runs, ``.csv`` for a quick
-summary, and ``.json`` for detailed results with the redshift posteriors (:doc:`results`). ``plots`` saves each transient's figure in
-a folder. If one transient fails, its result is the reason, and the batch carries on. ``strider classify`` exits with
-an error only if no transient could be classified. For a long batch written to files, ``keep=False`` keeps only the
-failures in memory; the command line does this when it writes a results file.
+A table from elsewhere can keep its own column names and units:
+
+- ``columns={"object_id": "SNID", "error": "flux_error"}`` (``--columns object_id=SNID,error=flux_error``) gives the
+  table's name for any column it names differently.
+- ``wavelength_unit="micron"`` (``--wavelength-unit micron``) reads wavelength in microns; ``nm`` and ``angstrom``
+  (the default) work too.
+- ``flux_density="f_nu"`` (``--flux-density f_nu``) reads flux per unit frequency, in any units. STRIDER converts the
+  flux and its error to per unit wavelength.
+- One row per pixel also works: ``wavelength``, ``flux`` and ``error`` are then numbers, not lists. The rows with one
+  ``visit_id`` are one visit, or, without that column, the rows with one ``mjd``.
+
+``strider.io.read_spectra`` reads the whole table, its rows in any order. For a large table,
+``strider.io.iter_spectra`` reads one transient at a time, so the table's size does not matter, and
+``classify_many`` takes what it gives. It needs the rows of each transient together; sort the table by
+``object_id`` first if they are not. ``strider classify`` reads a parquet table this way. A transient that cannot be
+read, such as one with a visit without a date, gets the reason as its result, and the others carry on.
+
+``strider/data`` has the bundled example in these layouts too: ``example_by_pixel.parquet``, one row per pixel with
+each visit's ``visit_id``, and ``example_own_names.parquet``, with its own column names, wavelength in microns and flux
+per unit frequency:
+
+.. code-block:: console
+
+    strider classify example_own_names.parquet -o results.parquet \
+        --columns object_id=SNID,wavelength=lam,error=flux_error --wavelength-unit micron --flux-density f_nu
+
+The results file's ending sets its format: ``.parquet``, ``.csv`` or ``.json`` (:doc:`results`). ``plots`` saves each
+transient's figure in a folder. If one transient fails, its result is the reason, and the batch carries on.
+``strider classify`` exits with an error only if no transient could be classified. For a long batch written to
+files, ``keep=False`` keeps only the failures in memory; the command line does this when it writes a results file.
 
 What you know about a transient
 -------------------------------
@@ -110,10 +136,10 @@ then the first two, and so on, in time order, and draws one column for each:
 These are the first spectra STRIDER can use. A spectrum it leaves out is skipped, so "1 spectrum" may be the second
 one observed. Each column is one ``model.classify``, so ``steps=range(1, n + 1)`` is slow for many spectra.
 
-By default the columns use 1, 2, 3, 5, 10 and 20 spectra, those fewer than all of them, then all; with more than 20, 2
-is left out to keep six columns. ``steps=range(3, 9)`` uses 3 to 8 spectra instead. ``rows="all"`` shows each class on
-its own row. For a simulated transient, ``true_redshift=1.08`` marks its true redshift. It takes the same inputs and
-priors as ``model.classify``.
+By default the columns use 1, 2, 3, 5, 10 and 20 spectra, those below the total, then all of them; with more than 20
+spectra, 2 is left out to keep six columns. ``steps=range(3, 9)`` uses 3 to 8 spectra instead. ``rows="all"`` shows
+each class on its own row. For a simulated transient, ``true_redshift=1.08`` marks its true redshift. It takes the
+same inputs and priors as ``model.classify``.
 
 ``model.classify_first`` gives the results themselves, without the figure: a dictionary of results by the number of
 spectra, so you can follow P(Ia) and the redshift as the spectra arrive:
@@ -136,34 +162,63 @@ STRIDER trusts the errors you give. If the spectra are noisier than their errors
 
 Each result gives the factor used, as ``error_scale``. ``classify_many`` measures it for each transient.
 
+The brightness comparison trusts the errors too. So STRIDER checks each light curve against its errors: in each
+band, how far each faint point lies from a curve through its neighbours, against what the errors allow
+(``strider.brightness.check_errors``). Each result keeps this check, as ``light_curve_check``, and by default
+changes nothing. ``light_curve_errors="correct"`` (``--light-curve-errors correct``) also scales the light curve's
+errors up by what the check finds. A light curve with too few faint points, as when a host galaxy's light keeps
+every point bright, cannot be checked. Use one correction at a time: ``light_curve_errors="correct"`` cannot go with an
+``error_scale`` other than 1.
+
 Running faster
 --------------
 
 On a machine with several cores, ``workers=4`` classifies four transients at once, each on its own core, which is
-the fastest way through a large batch (``--workers 4`` on the command line). The results are the same up to rounding, in
-the same order. Each worker loads its own copy of the model. In a script, call ``classify_many`` under
-``if __name__ == "__main__":``, as Python needs for processes.
+the fastest way through a large batch (``--workers 4`` on the command line). The results are the same up to rounding.
+Each is written as it finishes, so a results file can hold them in another order than the input; the dictionary
+``classify_many`` returns keeps the input's order. Each worker loads its own copy of the model. In a script, call
+``classify_many`` under ``if __name__ == "__main__":``, as Python needs for processes.
 
 On a GPU, load the model with ``device="cuda"``; ``classify_many`` then scores 8 transients together (``batch=``
 changes it; ``--device cuda --batch 16``). Each needs about 1 GB of GPU memory at about 20 visits. A batch that runs
 out of memory is halved and tried again. Results match a CPU's up to rounding. Apple GPUs (``mps``) do not work. A GPU
 only makes large batches faster.
 
+The brightness comparison searches peak dates in two steps: dates about 8 days apart in the transient's own time,
+then finer dates around each good fit. ``strider.load_model(scan="full")`` (``--full-scan``) starts 2 days apart and
+is about 2.5 times slower; it is the scan STRIDER 0.1 used. The fast scan is close to it, not the same: a transient
+whose best match is close to a level of match strength can get the other level. Each result gives the scan used, as
+``brightness_scan``.
+
+A transient's time is set mostly by its light curve: one with many spectra can take half an hour or more on one core.
+``max_spectra=16`` (``--max-spectra 16``) uses only the first 16 usable spectra of each transient, in time order,
+which bounds that time; the later spectra are listed in ``dropped_visits``. Later spectra matter most for distant,
+faint transients, so a limit costs most there. By default STRIDER uses every spectrum.
+
 The command line
 ----------------
 
-- ``strider classify my_transient.csv``: classify one transient, and print its card.
+- ``strider classify my_transient.csv``: classify one transient, and print its report.
 - ``strider classify spectra.parquet -o results.parquet``: classify many, and write the results. ``-o`` can also
   end in ``.csv`` or ``.json``.
+- ``strider merge job*.parquet -o results.parquet``: join the results of a run split into jobs
+  (:doc:`running_at_scale`).
+- ``strider info``: describe this install; ``strider info results.parquet``, the run behind a results file.
+- ``strider rerun FOLDER``: classify saved transients again and compare (:doc:`troubleshooting`).
 - ``strider models``: list the released models. ``--card NAME`` prints a model's card.
 - ``strider check``: check the install and a model.
 
 Options of ``strider classify``:
 
 - **Outputs**: ``-o`` (the results file); ``--plot`` (each transient's figure, as ``<name>.png``; ``--plot figures``
-  puts them in the folder ``figures``; needs matplotlib); ``--evidence-maps evidence.h5`` and ``--redshift-curves
+  puts them in the folder ``figures``); ``--evidence-maps evidence.h5`` and ``--redshift-curves
   redshifts.hdf5`` (:doc:`results`).
+- **The input**: ``--columns``, ``--wavelength-unit`` and ``--flux-density``; ``--only ID,...`` classifies only those
+  transients.
 - **What you know**: ``--classes``, ``--class-prior``, ``--zmin``, ``--zmax`` and ``--host-redshift-outlier``;
-  ``--error-scale 1.25`` or ``--error-scale auto``.
-- **Running**: ``--model``, ``--workers``, ``--device`` and ``--batch``. ``--model`` takes a released model's name,
-  ``test`` for the bundled test model, or the path to a model package. Without it, STRIDER uses the default model.
+  ``--error-scale 1.25`` or ``--error-scale auto``; ``--light-curve-errors correct``.
+- **Running**: ``--model``, ``--workers``, ``--device``, ``--batch``, ``--full-scan`` and ``--max-spectra``.
+  ``--model`` takes a released model's name, ``test`` for the bundled test model, or the path to a model package.
+  Without it, STRIDER uses the default model.
+- **Long runs**: ``--job K/N``, ``--resume``, ``--save-every`` and ``--verbose`` (:doc:`running_at_scale`);
+  ``--save-transient FOLDER`` with ``--only`` (:doc:`troubleshooting`).

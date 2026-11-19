@@ -13,8 +13,8 @@ authors:
   - family-names: Anumba
     given-names: K.
     orcid: "https://orcid.org/0000-0001-8791-7273"
-version: "0.1.0"
-date-released: "2026-11-13"
+version: "0.2.0"
+date-released: "2026-11-19"
 repository-code: "https://github.com/Roman-Supernova-PIT/strider"
 url: "https://roman-supernova-pit.github.io/strider/"
 license: BSD-3-Clause

@@ -15,9 +15,15 @@ y = U' G f and m = U' G mu, the log likelihood ratio of a source of amplitude A 
     g(A) = sum_p [y_p^2 - (y_p - A m_p)^2 / (1 + A^2 lam_p) - ln(1 + A^2 lam_p)] / 2.
 
 It is integrated over A under a half-normal prior on A |m|, the amplitude in S/N units, and over t0 under a flat
-prior on a window about the row of highest S/N, refined around each peak in t0 until the peak is resolved. The null
-copies, Gaussian noise at the rows' errors with no source, go through the same steps, and the term L(c, z) is the
-transient's value less their mean, so that the dates and errors alone favour no class.
+prior on a window about the row of highest S/N, refined around each peak in t0 until the peak is resolved. The fast
+scan (the default) takes the first peak dates about 8 rest days apart and 16 finer ones about each peak; the full scan
+2 days apart and 50. Both integrate the same window, prior and null copies. The null copies, Gaussian noise at the
+rows' errors with no source, go through the same steps, and the term L(c, z) is the transient's value less their mean,
+so that the dates and errors alone favour no class.
+
+The term trusts the rows' errors. `check_errors` measures from the light curve alone how far they understate its
+scatter; multiplying the errors by its scale before scoring (the null copies included) keeps understated errors from
+being read as a source.
 """
 
 from typing import NamedTuple
@@ -25,13 +31,15 @@ from typing import NamedTuple
 import numpy as np
 import torch
 
-__all__ = ["BrightnessCurve", "BrightnessScore", "BrightnessTerm"]
+__all__ = ["BrightnessCurve", "BrightnessScore", "BrightnessTerm", "ErrorCheck", "check_errors"]
 
 STEP = 1.0  # rest days between template phases
 LATE, EARLY = 50.0, 10.0  # rest days over which a template fades beyond its window's late and early edges
 PEAK_SPAN = (-90.0, 30.0)  # peak-date window about the anchor, in rest days at the highest template redshift
 T0_STEP = 2.0  # rest days between the first peak dates
 REFINE = (5, 50)  # about a peak, this many peak dates are replaced by this many finer ones
+# each scan's first peak dates (every this many T0_STEPs) and the finer dates about each peak
+SCANS = {"fast": (4, 16), "full": (1, REFINE[1])}
 MAX_LEVELS = 6
 PEAKS, PEAK_RANGE = 3, 10.0  # peaks refined per class and redshift: at most 3, within 10 nats of the best
 # grid redshifts beside a template redshift where L bends by over SHARP nats, within REFINE_Z nats of the class's
@@ -51,6 +59,84 @@ CUT = 4.0
 COPY_RULE = np.polynomial.legendre.leggauss(6)
 COPY_PANELS, COPY_RANGE = 16, (1e-4, 10.0)
 BUDGET = 1e7  # about the numbers held per batch of trials
+# check_errors: neighbours on each side, the S/N above which their summed flux is too bright to measure noise, the
+# standard errors of s^2 it must exceed 1 by, and the largest standard error of s^2 that measures a scale at all (0.5:
+# at least 8 independent residuals' worth)
+SCALE_NEAR, SCALE_FAINT, SCALE_Z, SCALE_SE = 2, 20.0, 2.0, 0.5
+
+
+class ErrorCheck(NamedTuple):
+    """How a light curve's scatter compares with its errors (`check_errors`).
+
+    Parameters
+    ----------
+    scale : float
+        The factor to multiply the errors by: sqrt(max(1, s^2 - 2 se)), or 1 if the scatter was not measured.
+    scatter : float
+        s, the scatter of the faint points about their neighbours over what the errors allow; NaN without points.
+    scatter_squared_se : float
+        se, the standard error of s^2 were the errors right; NaN without points.
+    points : int
+        How many faint points measured it.
+    """
+
+    scale: float
+    scatter: float
+    scatter_squared_se: float
+    points: int
+
+    @property
+    def measured(self) -> bool:
+        """Whether there were enough independent points to measure the scatter."""
+        return self.points > 0 and self.scatter_squared_se <= SCALE_SE
+
+
+def check_errors(days, band, flux, error) -> ErrorCheck:
+    """How far a light curve's errors understate its scatter, from the light curve alone.
+
+    In each band, each row less the quadratic through its SCALE_NEAR neighbours on each side in time (least squares)
+    is divided by that residual's noise from the errors, kept where the neighbours' summed flux is below SCALE_FAINT
+    in S/N, as a bright light curve's curvature is not noise. With s^2 the mean squared residual and se its standard
+    error were the errors right (Gaussian, from the residuals' exact correlations), the scale is
+    sqrt(max(1, s^2 - SCALE_Z se)). Too few independent residuals (se above SCALE_SE, as for a short light curve,
+    whose few residuals sit at its bright, curved part) measure nothing, and the scale is 1. Known limitation: the
+    faint test reads the flux as given, so constant host light in a band, which the term removes, can leave no faint
+    rows to measure.
+
+    Parameters
+    ----------
+    days, band, flux, error : array_like
+        The rows, as `BrightnessTerm.score` takes them; rows without a finite flux and a positive error are left out.
+    """
+    days, flux, error = (np.asarray(a, np.float64) for a in (days, flux, error))
+    band = np.asarray(band)
+    good = np.isfinite(flux) & np.isfinite(error) & (error > 0)
+    days, band, flux, error = days[good], band[good], flux[good], error[good]
+    values, blocks = [], []
+    for b in np.unique(band):
+        mine = np.flatnonzero(band == b)
+        mine = mine[np.argsort(days[mine], kind="stable")]
+        t, f, e = days[mine], flux[mine], error[mine]
+        rows = []
+        for v in range(SCALE_NEAR, len(t) - SCALE_NEAR):
+            j = np.r_[v - SCALE_NEAR : v, v + 1 : v + SCALE_NEAR + 1]
+            if abs(f[j].sum()) >= SCALE_FAINT * np.sqrt(np.sum(e[j] ** 2)):
+                continue
+            row = np.zeros(len(t))
+            row[v], row[j] = 1.0, -np.linalg.pinv(np.vander(t[j] - t[v], 3, increasing=True))[0]
+            rows.append(row)
+        if rows:
+            m = np.array(rows)
+            cov = (m * e**2) @ m.T
+            sd = np.sqrt(np.diag(cov))
+            values.append(m @ f / sd)
+            blocks.append(np.sum((cov / np.outer(sd, sd)) ** 2))
+    n = sum(len(v) for v in values)
+    if not n:
+        return ErrorCheck(1.0, np.nan, np.nan, 0)
+    s2 = float(np.mean(np.concatenate(values) ** 2))
+    se = float(np.sqrt(2 * np.sum(blocks)) / n)
+    return ErrorCheck(float(np.sqrt(max(1.0, s2 - SCALE_Z * se))) if se <= SCALE_SE else 1.0, float(np.sqrt(s2)), se, n)
 
 
 class BrightnessScore(NamedTuple):
@@ -109,9 +195,14 @@ class BrightnessTerm:
         (classes, redshifts) bool, the cells to score, by default all; the others are -inf.
     device : str
         The PyTorch device.
+    scan : str
+        ``fast`` (the default), or ``full`` for the peak-date scan 4 times finer (`SCANS`).
     """
 
-    def __init__(self, templates, grid, scored=None, device="cpu"):
+    def __init__(self, templates, grid, scored=None, device="cpu", scan="fast"):
+        if scan not in SCANS:
+            raise ValueError(f"scan must be one of {sorted(SCANS)}, not {scan!r}")
+        self.scan, (self.coarse, self.refine_nodes) = scan, SCANS[scan]
         self.device = torch.device(device)
         self.classes = [str(c) for c in templates["classes"]]
         self.nodes = np.asarray(templates["z_nodes"], np.float64)
@@ -409,7 +500,7 @@ class BrightnessTerm:
         weights (pairs, 3)."""
         span = self.peak_window[1] - self.peak_window[0]
         z1 = np.exp(np.interp(position, np.arange(len(self.nodes)), self.nodes))
-        count = np.ceil(span / (z1 * T0_STEP)).astype(int)
+        count = -(-np.ceil(span / (z1 * T0_STEP)).astype(int) // self.coarse)  # the same window in 1 / coarse the dates
         step = span / (z1 * count)
         k = np.arange(count.max())
         inside = k < count[:, None]
@@ -425,7 +516,7 @@ class BrightnessTerm:
             if finer is None:
                 break
             levels.append(finer)
-            segment = REFINE[1]
+            segment = self.refine_nodes
         total = torch.full((len(cls), 1 + NULL_COPIES), -torch.inf, dtype=torch.float64, device=self.device)
         for v, w, _ in levels:
             total = torch.logaddexp(total, torch.logsumexp(v + w[..., None], dim=1))
@@ -437,9 +528,9 @@ class BrightnessTerm:
     def _refine(self, data, values, log_w, phase, segment, cls, position):
         """A finer level of peak dates (values, log weights, phases) about each of up to PEAKS local maxima of the
         transient's L per pair within PEAK_RANGE nats of its best (by the parabola through the node and its
-        neighbours) where the spacing is over 1.6 posterior SDs; None without one. REFINE[1] dates replace the
+        neighbours) where the spacing is over 1.6 posterior SDs; None without one. The scan's finer dates replace the
         REFINE[0] around a maximum, which are set to -inf in ``values``. Dates run in segments of ``segment``."""
-        cells, nodes = REFINE
+        cells, nodes = REFINE[0], self.refine_nodes
         span = self.peak_window[1] - self.peak_window[0]
         z1 = self._z1(self._t(position))
         real = values[..., 0]
@@ -504,9 +595,17 @@ def _log_prior(u):
 
 
 def _eigen(G, S):
-    """The eigenvalues (at least 0) and eigenvectors of G S G'."""
+    """The eigenvalues (at least 0) and eigenvectors of G S G'. Where LAPACK's default driver fails to converge, as it
+    can on well-posed matrices, SciPy's MRRR driver solves the same matrices, one at a time, in float64."""
     B = G @ S @ G.T
-    lam, U = torch.linalg.eigh(0.5 * (B + B.mT))
+    B = 0.5 * (B + B.mT)
+    try:
+        lam, U = torch.linalg.eigh(B)
+    except torch.linalg.LinAlgError:
+        from scipy import linalg
+
+        pairs = [linalg.eigh(matrix, driver="evr") for matrix in B.cpu().numpy()]
+        lam, U = (torch.as_tensor(np.stack(found), dtype=B.dtype, device=B.device) for found in zip(*pairs))
     return lam.clamp(min=0), U
 
 

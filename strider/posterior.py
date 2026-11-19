@@ -115,9 +115,10 @@ def match(spectrum, brightness, training, spectrum_weight, brightness_weight, gr
     Returns
     -------
     dict
-        ``best_class`` and ``next_best_class`` (indices), ``best_redshift``, ``match_gap``, ``match_strength`` and
+        ``best_class`` and ``next_best_class`` (indices), ``best_redshift``, ``match_gap``, ``match_strength``,
         ``warnings``: a second redshift of the best class within ``levels["second_redshift"]`` of it, and the
-        spectrum and the brightness term each alone favouring different classes or redshifts.
+        spectrum and the brightness term each alone favouring different classes or redshifts; and
+        ``warning_codes``, the same warnings as ``second_redshift`` and ``spectra_brightness_disagree``.
     """
     x = np.log1p(np.asarray(grid, dtype=np.float64))
     trained = np.isfinite(training)
@@ -127,15 +128,17 @@ def match(spectrum, brightness, training, spectrum_weight, brightness_weight, gr
     score = spectral + brightness_weight * np.where(np.isfinite(brightness), brightness, 0.0)
     best, k = _best(score)
     following, gap = _next_best(score, best)
-    warnings = []
+    warnings, codes = [], []
     second = _second_redshift(score[best], k, x)
     if second is not None and score[best, k] - score[best, second] < levels["second_redshift"]:
         warnings.append(f"second redshift near z {grid[second]:.2f}")
+        codes.append("second_redshift")
     light = np.where(np.isfinite(spectral) & np.isfinite(brightness), brightness, -np.inf)
     (spectrum_class, spectrum_z), (light_class, light_z) = _best(spectral), _best(light)
     informative = min(_next_best(spectral, spectrum_class)[1], _next_best(light, light_class)[1]) >= INFORMATIVE
     if informative and (spectrum_class != light_class or abs(x[spectrum_z] - x[light_z]) >= MODE_SEPARATION):
         warnings.append("spectra and brightness disagree")
+        codes.append("spectra_brightness_disagree")
     strength = "high" if gap >= levels["high"] else "medium" if gap >= levels["medium"] else "low"
     return {
         "best_class": best,
@@ -144,6 +147,7 @@ def match(spectrum, brightness, training, spectrum_weight, brightness_weight, gr
         "match_gap": gap,
         "match_strength": strength,
         "warnings": warnings,
+        "warning_codes": codes,
     }
 
 

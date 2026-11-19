@@ -44,7 +44,7 @@ FINGERPRINT_FILES = ("weights.pt", "spectral_model.pt", "brightness.npz", "prepr
 # brightness.npz's float64 tables, stored beside its classes, band edges and noise profile
 BRIGHTNESS_TABLES = ("z_nodes", "mean", "psi2", "loadings", "window", "tau", "discrepancy")
 SPECTRAL_MODEL_PREFIX = "roman_reference.spectral_model."
-UPGRADE = "Upgrade STRIDER (pip install -U roman-snpit-strider), or use a model package made for this version"
+UPGRADE = "Upgrade STRIDER (git pull, then pip install .), or use a model package made for this version"
 DAMAGED = "the package is damaged. Download it again"
 ANY = None
 SOURCE_METHOD = "balanced-affine-logit"  # the source probability's calibration (`strider.posterior.source_probability`)

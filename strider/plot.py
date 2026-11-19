@@ -1,25 +1,29 @@
 """The figure of one result (`strider.Classification.plot`), and of results as the spectra arrive
-(`strider.Model.plot_accumulation`). They need matplotlib, and use cmasher's colour maps when cmasher is installed."""
+(`strider.Model.plot_accumulation`), drawn with matplotlib and cmasher's colour maps."""
+
+import textwrap
+import warnings
 
 import numpy as np
 
 from .bands import EDGES
-from .io import _percent
+from .io import _percent, _tier
 from .posterior import _cell_edges
 from .preprocess import network_inputs
 
 __all__ = ["accumulation", "figure", "pyplot"]
 
-BLUE, GREEN, ORANGE, RED, GREY = "#2468A0", "#286044", "#B5562B", "#8E2430", "#777777"
-BANDS = (BLUE, GREEN, ORANGE, RED)
+BLUE, GREEN, ORANGE, GREY = "#2468A0", "#286044", "#B5651D", "#777777"  # SN Ia, the true redshift, other classes
+BANDS = ("#4A4FA8", "#2A8A5C", "#D08A2A", "#C0392B")  # the four bands, blue to red
 STYLE = {
     "font.family": "STIXGeneral",
     "mathtext.fontset": "stix",
-    "font.size": 8,
-    "axes.titlesize": 8.5,
-    "axes.labelsize": 8.5,
-    "xtick.labelsize": 7,
-    "ytick.labelsize": 7,
+    "font.size": 9,
+    "axes.titlesize": 10,
+    "axes.labelsize": 9.5,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "legend.fontsize": 7.5,
     "axes.linewidth": 0.6,
     "xtick.direction": "out",
     "ytick.direction": "in",
@@ -28,25 +32,27 @@ STYLE = {
     "figure.facecolor": "white",
     "savefig.facecolor": "white",
 }
-LABEL = {"ha": "right", "va": "top", "fontsize": 6.5, "bbox": {"fc": "white", "ec": "none", "pad": 1, "alpha": 0.85}}
-TITLE_PAD = 30  # room above the top row for (a)'s rest-wavelength axis
+BOX = {"fc": "white", "ec": "none", "pad": 1, "alpha": 0.85}
+LABEL = {"ha": "right", "va": "top", "fontsize": 6.5, "bbox": BOX}
+TEXT = {"ha": "right", "va": "top", "fontsize": 8, "bbox": BOX}
+TITLE_PAD = 30  # room above the top row for (a)'s observed-wavelength axis
+DETECTED = 2.0  # the S/N above a band's steady level from which (c) fills a point
 
 
 def pyplot():
-    """matplotlib.pyplot, or an error that says how to install it."""
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        raise ImportError('the figure needs matplotlib: pip install "roman-snpit-strider[plot]"') from None
+    """matplotlib.pyplot, imported when a figure is drawn, with cmasher's colour maps."""
+    import cmasher  # noqa: F401  (it registers its maps with matplotlib)
+    import matplotlib.pyplot as plt
+
     return plt
 
 
 def figure(result, name=None):
-    """The figure of a result of `strider.Model.classify`: (a) the spectra and their combination, with the four bands
-    shaded and the rest wavelength at the main redshift on top; (b) the combined spectrum against the best-matching
-    reference of the two most likely classes, each at its own redshift; (c) each visit's brightness in the four bands
-    against SN Ia's light curves fitted to it; (d) every class at every redshift; (e) the class probabilities, and the
-    redshift posterior of all classes, of SN Ia and of the other classes."""
+    """The figure of a result of `strider.Model.classify`, under a summary of the result: (a) the combined spectrum
+    over the spread of the spectra, with the four bands shaded; (b) the combined spectrum against the best match's
+    model spectrum; (c) each visit's brightness in the four bands against the best match's light curves fitted to it;
+    (d) every class at every redshift; (e) the class probabilities, and the redshift posterior of all classes, of SN
+    Ia and of the other classes."""
     import torch
 
     plt = pyplot()
@@ -58,18 +64,89 @@ def figure(result, name=None):
         )
     model, prepared, output = source
     inputs = _tensors(prepared, model.device)
+    notes = [*result.warnings, *result._report_parts()[3]]
+    notes = textwrap.wrap("Warnings: " + "; ".join(notes), 105) if notes else []
+    heading = HEADING + (0.07 + NOTES * len(notes) if notes else 0.0)  # inches above the panels' titles
+    height = heading + 5.75
     with plt.rc_context(STYLE), torch.no_grad():
-        drawn = plt.figure(figsize=(7.2, 5.6))
-        grid = drawn.add_gridspec(2, 3, height_ratios=[1, 1.1], top=0.86, hspace=0.45, wspace=0.3)
-        _visits(drawn.add_subplot(grid[0, 0]), result, model, prepared, inputs)
-        _references(drawn.add_subplot(grid[0, 1]), result, model, inputs)
-        _bands(drawn.add_subplot(grid[0, 2]), result, model, prepared, output)
+        drawn = plt.figure(figsize=(7.2, height))
+        grid = drawn.add_gridspec(
+            2, 3, height_ratios=[1, 0.95], top=1 - heading / height, bottom=0.45 / height, hspace=0.42, wspace=0.3
+        )
+        spectra, match, bands = (drawn.add_subplot(grid[0, k]) for k in range(3))
+        _visits(spectra, result, model, prepared, inputs)
+        _best_match(match, result, model, inputs)
+        _bands(bands, result, model, prepared, output)
         _probability_map(drawn, grid[1, :2], result)
         _probabilities(drawn, grid[1, 2], result)
-        if name:
-            drawn.suptitle(str(name), x=0.06, ha="left", y=0.995, fontsize=9.5)
+        _heading(drawn, result, name, notes, spectra.get_position().x0, bands.get_position().x1, height)
         _tidy(drawn)
     return drawn
+
+
+HEADING, NOTES = 2.05, 0.2  # the heading's height in inches, and each line of warnings under it
+STRENGTH = {"high": "#2E7D32", "medium": "#A68A00", "low": "#B3261E"}
+TIER = {"green": STRENGTH["high"], "yellow": STRENGTH["medium"], "orange": "#D35400", "red": STRENGTH["low"]}
+EDGE = "#C9CED6"  # the heading box's edge and dividers
+
+
+def _heading(fig, result, name, notes, left, right, height):
+    """The result in a box above the panels, as its report gives it: the name and model, then four tiles (class,
+    redshift, match strength, data), each a label, a value and a detail, and any warnings and checks under the box."""
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import FancyBboxPatch
+
+    def y(inches):  # inches from the top of the figure, as a figure fraction
+        return 1 - inches / height
+
+    ranked = result._ranked()
+    (top, p), others = ranked[0], [(label, q) for label, q in ranked[1:3] if q >= 0.01]
+    low, high = result.redshift_68
+    digits = 3 if high - low < 0.05 else 2
+    best, _ = result.best_match
+    visits = len(result.visits_used)
+    count = f"{visits} visit{'s' if visits > 1 else ''}"
+    data = result._report_parts()[2].removeprefix(count).removeprefix(", ").strip()
+    tiles = [
+        ("Class", f"{_name(top)} {_percent(p)}", TIER[_tier(p)], _listed(others) or "others <1%"),
+        ("Redshift", f"{result.redshift:.{digits}f}", "black", f"68%: {low:.{digits}f}–{high:.{digits}f}"),
+        (
+            "Match",
+            result.match_strength.capitalize(),
+            STRENGTH[result.match_strength],
+            f"best {_name(best)}, next {_name(result.next_best_class)}",
+        ),
+        ("Data", count, "black", data),
+    ]
+    fig.text(left, y(0.12), name or "Transient", fontsize=12, fontweight="bold", va="top")
+    fig.text(right, y(0.15), result.model, fontsize=8, color="0.45", ha="right", va="top")
+    box_top, box_bottom = y(0.42), y(1.42)
+    fig.add_artist(
+        FancyBboxPatch(
+            (left, box_bottom),
+            right - left,
+            box_top - box_bottom,
+            boxstyle="round,pad=0,rounding_size=0.008",
+            transform=fig.transFigure,
+            fc="#F3F4F6",
+            ec=EDGE,
+            lw=0.7,
+        )
+    )
+    width = (right - left) / len(tiles)
+    for n, (label, value, colour, detail) in enumerate(tiles):
+        x = left + n * width + 0.018
+        if n:
+            fig.add_artist(Line2D([x - 0.018] * 2, [y(0.55), y(1.29)], transform=fig.transFigure, color=EDGE, lw=0.6))
+        fig.text(x, y(0.52), label, fontsize=8, color="0.4", va="top")
+        fig.text(x, y(0.72), value, fontsize=15, fontweight="bold", color=colour, va="top")
+        fig.text(x, y(1.07), "\n".join(textwrap.wrap(detail, 26)), fontsize=8, color="0.3", va="top", linespacing=1.2)
+    if notes:
+        fig.text(left, y(1.52), "\n".join(notes), fontsize=8.5, color=STRENGTH["medium"], va="top", linespacing=1.4)
+
+
+def _listed(classes):
+    return "   ".join(f"{_name(label)} {_percent(q)}" for label, q in classes)
 
 
 def accumulation(results, rows="binary", true_redshift=None, name=None):
@@ -197,123 +274,185 @@ def _coadd(inputs):
     return inverse_variance_coadd(*inputs[:4])
 
 
+def _measured(model, inputs):
+    """The combined spectrum, its error, and the pixels to show: measured by a visit, away from the tapered ends, and
+    with an error at most ten times the median there (pixels of larger error carry almost no weight)."""
+    coadd, error, covered = (np.squeeze(_numpy(value)).astype(np.float64) for value in _coadd(inputs))
+    keep = (covered > 0) & (np.squeeze(_numpy(model.network.matching_weight)) > 0.5)
+    if keep.any():
+        keep &= error <= 10.0 * np.median(error[keep])
+    return coadd, error, keep
+
+
 def _combined(model, inputs):
-    """The combined spectrum, NaN where no visit measures it and at the tapered ends, and its 98th percentile."""
-    coadd, _, covered = (_numpy(value) for value in _coadd(inputs))
-    shown = np.where((covered > 0) & (_numpy(model.network.matching_weight) > 0.5), coadd, np.nan)
-    return shown, np.nanpercentile(np.abs(shown), 98) if np.isfinite(shown).any() else 1.0
+    """The combined spectrum, NaN where it is not shown (`_measured`), and its 98th percentile."""
+    coadd, _, keep = _measured(model, inputs)
+    shown = np.where(keep, coadd, np.nan)
+    return shown, np.nanpercentile(np.abs(shown), 98) if keep.any() else 1.0
+
+
+def _smooth(values, use, sigma):
+    """``values`` smoothed over the pixels ``use`` marks, with a Gaussian of ``sigma`` pixels."""
+    from scipy.ndimage import gaussian_filter1d
+
+    return gaussian_filter1d(np.where(use, values, 0.0), sigma) / np.maximum(gaussian_filter1d(use * 1.0, sigma), 1e-3)
+
+
+def _shown(model, inputs):
+    """The combined spectrum, lightly smoothed, where it is shown (`_measured`), its error, the pixels shown, and its
+    97th percentile there."""
+    coadd, error, keep = _measured(model, inputs)
+    shown = np.where(keep, _smooth(coadd, keep, 2), np.nan)
+    unit = np.nanpercentile(shown, 97) if keep.any() else 1.0
+    return shown, error, keep, unit if unit > 0 else 1.0
+
+
+def _fill_height(ax, line, *whole):
+    """Fit the y-axis to the spectrum ``line`` and the ``whole`` curves, from zero or just below the line's lowest 2%
+    (deeper noise runs off the panel) and the whole curves' lowest point, to room for the labels above 1."""
+    line = np.ravel(line)[np.isfinite(np.ravel(line))]
+    lows = [np.percentile(line, 2)] if line.size else []
+    lows += [np.nanmin(curve) for curve in whole if np.isfinite(curve).any()]
+    ax.set_ylim(min(0.0, *lows) - 0.08, 1.3)
 
 
 def _visits(ax, result, model, prepared, inputs):
+    """(a) the combined spectrum over the 16-84% range of the spectra, each smoothed and scaled to the combined
+    spectrum's total flux where both measure it, in rest wavelength at the main redshift, with the four bands shaded
+    and the observed wavelength on top."""
     from matplotlib.ticker import MaxNLocator
 
-    shown, norm = _combined(model, inputs)
-    keep = np.isfinite(shown)
-    level = np.exp(np.log(prepared.scale.astype(np.float64)).mean())
-    wavelength = model.package.wavelength_grid / 1e4
-    for colour, low, high in zip(BANDS, EDGES[:-1] / 1e4, EDGES[1:] / 1e4):
-        ax.axvspan(low, high, color=colour, alpha=0.1, lw=0, zorder=0)
-    for flux, scale, measured in zip(prepared.flux, prepared.scale, prepared.measured):
-        ax.plot(
-            wavelength, np.where(measured & keep, flux * scale / level, np.nan) / norm, color=GREY, lw=0.3, alpha=0.25
-        )
-    ax.plot(wavelength, shown / norm, color=BLUE, lw=1.0)
-    ax.set_ylim(min(-0.2, np.nanpercentile(shown / norm, 1) - 0.2) if keep.any() else -0.2, 1.5)
-    ax.set_xlabel(r"Observed wavelength ($\mu$m)")
-    ax.set_ylabel("Relative flux")
+    shown, _, keep, unit = _shown(model, inputs)
     z = result.redshift
-    rest = ax.secondary_xaxis("top", functions=(lambda x: x / (1.0 + z), lambda x: x * (1.0 + z)))
-    rest.set_xlabel(f"Rest wavelength at z = {z:.2f} ($\\mu$m)", labelpad=3)
-    rest.xaxis.set_major_locator(MaxNLocator(5, steps=[1, 2, 2.5, 5, 10]))
-    count = len(prepared.flux)
-    ax.set_title(f"(a) {count} spectr{'a' if count > 1 else 'um'}, combined", loc="left", y=1.0, pad=TITLE_PAD)
-
-
-def _references(ax, result, model, inputs):
-    """Each of the two most likely classes at its own redshift: the combined spectrum without its continuum, and the
-    class's reference spectrum that matches it best, scaled to it."""
-    network = model.network
-    coadd, error, covered = _coadd(inputs)
-    view = network.matching_view(coadd, covered, error)
-    removed = _numpy(view["removed"])
-    used = (_numpy(view["mask"]) > 0) & (_numpy(network.matching_weight) > 0.5)
-    observed = model.package.wavelength_grid
-    rest_grid = _numpy(model.package.spectral_model["rest_wavelength"]).astype(np.float64)
-    spectra = _numpy(network.reference_spectra["continuum_removed"])
-    masks = _numpy(network.coadd_profile_mask)
-    for offset, colour, label in ((2.0, GREEN, result.top_class), (0.0, ORANGE, result.second_class)):
-        redshift = result.class_redshifts[label]
-        if not np.isfinite(redshift):
-            continue
-        index = int(np.abs(model.redshift_grid - redshift).argmin())
-        score, valid = (_numpy(value) for value in network.phase_bin_scores(view, index))
-        k = model.classes.index(label)
-        if not valid[k].any():
-            continue
-        best = int(np.argmax(np.where(valid[k], score[k], -np.inf)))
-        rest = observed / (1.0 + redshift)
-        reference = np.interp(rest, rest_grid, spectra[k, best], left=np.nan, right=np.nan)
-        inside = np.interp(rest, rest_grid, masks[k, best].astype(np.float64), left=0.0, right=0.0) > 0.5
-        ok = used & inside & np.isfinite(reference) & np.isfinite(removed)
-        if ok.sum() < 2:
-            continue
-        scale = (removed[ok] @ reference[ok]) / max(reference[ok] @ reference[ok], 1e-300)
-        norm = max(np.nanpercentile(np.abs(removed[ok]), 95), 1e-300)
-        ax.plot(rest[ok] / 1e4, removed[ok] / norm + offset, color=GREY, lw=0.6)
-        ax.plot(rest[ok] / 1e4, scale * reference[ok] / norm + offset, color=colour, lw=1.3)
-        ax.text(
-            0.98,
-            offset + 1.05,
-            f"{label} at z = {redshift:.2f}",
-            transform=ax.get_yaxis_transform(),
-            ha="right",
-            va="bottom",
-            fontsize=7.5,
-            color=colour,
-        )
-    ax.set_ylim(-1.2, 3.6)
+    rest = model.package.wavelength_grid / (1.0 + z) / 1e4
+    for colour, low, high in zip(BANDS, EDGES[:-1], EDGES[1:]):
+        ax.axvspan(low / (1.0 + z) / 1e4, high / (1.0 + z) / 1e4, color=colour, alpha=0.1, lw=0, zorder=0)
+    count, low = len(prepared.flux), np.nan
+    if count > 1:
+        low, high = _spread(prepared, shown, keep, unit)
+        ax.fill_between(rest, low, high, color="0.75", lw=0, alpha=0.6)
+        ax.text(0.97, 0.87, f"{count} spectra: 16–84%", transform=ax.transAxes, color="0.45", **TEXT)
+    ax.plot(rest, shown / unit, color=BLUE, lw=1.0)
+    ax.text(0.97, 0.95, _line_name(result), transform=ax.transAxes, color=BLUE, **TEXT)
+    ax.set_xlim(*(rest[keep] if keep.any() else rest)[[0, -1]])
+    _fill_height(ax, shown / unit)
     ax.set_yticks([])
-    ax.set_xlabel(r"Rest wavelength ($\mu$m)")
-    ax.set_title("(b) Best-matching references", loc="left", y=1.0, pad=TITLE_PAD)
+    ax.set_xlabel(f"Rest wavelength at z = {z:.2f} ($\\mu$m)")
+    observed = ax.secondary_xaxis("top", functions=(lambda x: x * (1.0 + z), lambda x: x / (1.0 + z)))
+    observed.set_xlabel(r"Observed ($\mu$m)", labelpad=3)
+    observed.xaxis.set_major_locator(MaxNLocator(4, steps=[1, 2, 2.5, 5, 10]))
+    ax.set_title("(a) Spectra", loc="left", pad=TITLE_PAD)
+
+
+def _spread(prepared, shown, keep, unit):
+    """The 16th and 84th percentiles, at each pixel, of the spectra, each smoothed and scaled to the combined spectrum
+    ``shown``'s total flux where both measure it, in units of ``unit``. A spectrum's own pixels of extreme error (more
+    than ten times its median) are left out, so one very noisy spectrum cannot set the spread."""
+    spread = np.full(np.shape(prepared.flux), np.nan)
+    for k, (flux, measured, log_error) in enumerate(zip(prepared.flux, prepared.measured, prepared.log_error)):
+        both = measured & keep
+        if both.any():
+            error = np.exp(np.asarray(log_error, dtype=np.float64))
+            both &= error <= 10.0 * np.median(error[both])
+        line = _smooth(flux, both, 5)
+        if np.sum(line[both]) > 0:
+            spread[k, both] = np.nansum(shown[both]) / np.sum(line[both]) * line[both]
+    with np.errstate(all="ignore"), warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # pixels no spectrum measures
+        return np.nanpercentile(spread / unit, [16, 84], axis=0)
+
+
+def _best_match(ax, result, model, inputs):
+    """(b) the combined spectrum of (a) against the best match's model spectrum, at its redshift and in the phase
+    window the comparison scores highest there, scaled to it by least squares over the pixels of small error."""
+    network = model.network
+    label, z = result.best_match
+    k, cell = model.classes.index(label), int(np.abs(model.redshift_grid - z).argmin())
+    combined, error, covered = _coadd(inputs)
+    view = network.matching_view(combined, covered, error)
+    score, valid = (_numpy(value) for value in network.phase_bin_scores(view, cell))
+    shown, error, keep, _ = _shown(model, inputs)
+    rest = model.package.wavelength_grid / (1.0 + z) / 1e4
+    ax.set_title("(b) Best match", loc="left", pad=TITLE_PAD)
+    ax.set_xlabel(f"Rest wavelength at z = {z:.2f} ($\\mu$m)")
+    ax.set_yticks([])
+    if not valid[k].any():
+        return
+    best = int(np.argmax(np.where(valid[k], score[k], -np.inf)))
+    rest_grid = _numpy(model.package.spectral_model["rest_wavelength"]).astype(np.float64) / 1e4
+    spectrum, inside = _numpy(network.reference_spectra["full"])[k, best], _numpy(network.coadd_profile_mask)[k, best]
+    reference = np.interp(rest, rest_grid, spectrum, left=np.nan, right=np.nan)
+    inside = np.interp(rest, rest_grid, inside.astype(np.float64), left=0, right=0)
+    region = keep & np.isfinite(reference) & (inside > 0.5)
+    quiet = region & (error < 2.5 * np.median(error[keep]))
+    if quiet.sum() < 2:
+        return
+    scale = np.sum(shown[quiet] * reference[quiet]) / max(np.sum(reference[quiet] ** 2), 1e-300)
+    unit = max(np.percentile(shown[region], 97), 1e-300)
+    line, fitted = np.where(region, shown, np.nan) / unit, np.where(region, scale * reference, np.nan) / unit
+    ax.plot(rest, line, color=BLUE, lw=1.1)
+    ax.plot(rest, fitted, color="k", lw=0.9)
+    ax.text(0.97, 0.95, _line_name(result), transform=ax.transAxes, color=BLUE, **TEXT)
+    ax.text(0.97, 0.87, f"{_name(label)} model", transform=ax.transAxes, **TEXT)
+    ax.set_xlim(rest[region][0], rest[region][-1])
+    _fill_height(ax, line, fitted)
 
 
 def _bands(ax, result, model, prepared, output):
-    """Each visit's flux in the four bands, with its error, against SN Ia's light curves fitted to them at its most
-    probable redshift and their 68% spread (`strider.brightness.BrightnessTerm.curve`), each band's steady level
-    removed, in observer-frame days from the fitted peak; without a fit, the fluxes from the first visit."""
-    ia = model.classes.index("Ia")
-    row = result.class_redshift_posterior[ia]
+    """(c) each visit's flux in the four bands, with its error, against the best match's light curves fitted to them
+    at its redshift and their 68% spread (`strider.brightness.BrightnessTerm.curve`), each band's steady level
+    removed, in observer-frame days from the fitted peak; without a fit, the fluxes from the first visit. Points
+    below S/N 2 are open circles. Points whose error is more than ten times the median do not set the scale, so they
+    cannot flatten the rest; they may run off the panel."""
+    label, z = result.best_match
+    k = model.classes.index(label)
     dates = np.linspace(prepared.mjd.min() - 25.0, prepared.mjd.max() + 35.0, 200)
-    fit = None
-    if np.isfinite(row).all():
-        z = float(result.redshift_grid[np.argmax(row)])
-        fit = model.brightness.curve(*prepared.band_rows(), ia, z, output["peak_date"][ia], dates)
-    flux, error = prepared.band_flux, prepared.band_error
+    days, band, flux, error = prepared.band_rows()
+    error = error * output["light_curve_error_scale"]  # the errors the term used
+    fit = model.brightness.curve(days, band, flux, error, k, z, output["peak_date"][k], dates)
+    flux, error = prepared.band_flux, prepared.band_error * output["light_curve_error_scale"]
     if fit is None:
         points, days, top = flux, prepared.mjd - prepared.mjd.min(), 0.0
+        reason = "Too few visits to fit" if len(np.unique(prepared.mjd)) < 2 else "No light-curve fit"
+        ax.text(0.97, 0.95, reason, transform=ax.transAxes, **TEXT)
     else:
         points, days, top = flux - fit.level, prepared.mjd - fit.peak_date, np.nanmax(fit.mean + fit.sd)
-        ax.text(0.96, 0.94, f"SN Ia at z {z:.2f}", transform=ax.transAxes, **LABEL)
+        ax.text(0.97, 0.95, f"{_name(label)} at z = {z:.2f}", transform=ax.transAxes, **TEXT)
     seen = np.isfinite(points)
-    unit = max(top, np.abs(points[seen]).max(), 1e-300) if seen.any() else 1.0
-    bottom = min(-0.3, points[seen].min() / unit - 0.1) if seen.any() else -0.3
+    ordinary = seen & (error <= 10.0 * np.median(error[seen])) if seen.any() else seen
+    unit = max(top, np.abs(points[ordinary]).max(), 1e-300) if ordinary.any() else 1.0
+    bottom = max(-1.0, min(-0.3, points[ordinary].min() / unit - 0.1)) if ordinary.any() else -0.3
+    detected = points >= DETECTED * error  # filled; the others open, so noise around zero stays quiet
     for band, colour in enumerate(BANDS):
         if fit is not None:
             shown, mean, sd = dates - fit.peak_date, fit.mean[:, band] / unit, fit.sd[:, band] / unit
             ax.fill_between(shown, mean - sd, mean + sd, color=colour, alpha=0.18, lw=0)
             ax.plot(shown, mean, color=colour, lw=0.9)
         low, high = EDGES[band : band + 2] / 1e4
-        mine = seen[:, band]
-        ax.errorbar(
-            days[mine],
-            points[mine, band] / unit,
-            error[mine, band] / unit,
-            fmt="o",
-            ms=3,
-            color=colour,
-            elinewidth=0.6,
-            label=f"{low:.2f}–{high:.2f} $\\mu$m",
-        )
+        for filled in (True, False):
+            mine = seen[:, band] & (detected[:, band] == filled)
+            ax.errorbar(
+                days[mine],
+                points[mine, band] / unit,
+                error[mine, band] / unit,
+                fmt="o",
+                ms=2.5 if filled else 3.2,
+                mfc=colour if filled else "white",
+                mew=0.7,
+                color=colour,
+                elinewidth=0.6,
+                capsize=0,
+                label=f"{low:.2f}–{high:.2f} $\\mu$m" if filled else None,
+            )
+    if (seen & ~detected).any():
+        ax.annotate(
+            f"Open circles: S/N < {DETECTED:g}",
+            (0.97, 0.95),
+            xycoords="axes fraction",
+            xytext=(0, -13),
+            textcoords="offset points",
+            **{**TEXT, "fontsize": 7, "color": GREY},
+        )  # under the label of the fit
     ax.axhline(0.0, color=GREY, lw=0.5, zorder=-5)
     ax.set_xlim(days.min() - 5.0, days.max() + 5.0)
     ax.set_ylim(bottom, 1.35)
@@ -322,15 +461,26 @@ def _bands(ax, result, model, prepared, output):
         loc="lower right",
         bbox_to_anchor=(1.0, 1.0),
         ncol=2,
-        fontsize=6,
+        fontsize=7,
         frameon=False,
         handlelength=0.8,
+        handletextpad=0.3,
         columnspacing=0.8,
         borderaxespad=0.2,
     )
     ax.set_xlabel("Observer-frame days from peak" if fit is not None else "Observer-frame days")
-    ax.set_ylabel("Relative flux")
-    ax.set_title("(c) Brightness in four bands", loc="left", y=1.0, pad=TITLE_PAD)
+    ax.set_ylabel("Relative band flux")
+    ax.set_title("(c) Brightness", loc="left", pad=TITLE_PAD)
+
+
+def _line_name(result):
+    """What the blue line of (a) and (b) is: the spectra combined, or the one spectrum."""
+    return "Combined" if len(result.visits_used) > 1 else "Spectrum"
+
+
+def _name(label):
+    """A class as the figure names it: SN Ia, not Ia."""
+    return "SN Ia" if label == "Ia" else label
 
 
 def _joint(result):
@@ -359,7 +509,7 @@ def _map(ax, result, names, values):
         _cell_edges(result.redshift_grid),
         np.arange(len(names) + 1) - 0.5,
         np.clip(values / max(values.max(), 1e-300), 1e-4, 1.0),
-        cmap=_colour_map("cmr.ember", "inferno"),
+        cmap="cmr.ember",
         norm=LogNorm(1e-4, 1.0),
         shading="flat",
         rasterized=True,
@@ -374,21 +524,32 @@ def _probability_map(fig, spec, result):
     """Every class at every redshift, relative to the most probable cell, with the main and second redshift peaks
     circled."""
     values = _joint(result)
-    sub = spec.subgridspec(1, 2, width_ratios=[1, 0.025], wspace=0.03)
+    sub = spec.subgridspec(1, 3, width_ratios=[1, 0.025, 0.07], wspace=0.03)  # the last, room for (e)'s labels
     ax = fig.add_subplot(sub[0])
     mesh = _map(ax, result, list(result.class_probabilities), values)
+    edges = _cell_edges(result.redshift_grid)
+    shown = np.flatnonzero((values >= 1e-4 * values.max()).any(0)) if values.max() > 0 else []
+    if len(shown):
+        low, high = edges[shown[0]], edges[shown[-1] + 1]
+        pad = max(0.1, 0.1 * (high - low))
+        ax.set_xlim(max(edges[0], low - pad), min(edges[-1], high + pad))
+    from matplotlib.patheffects import Normal, Stroke
+
     for n, (redshift, _) in enumerate(result.redshift_peaks[:2]):
         cell = int(np.abs(result.redshift_grid - redshift).argmin())
+        main = n == 0  # a bold ring; the second, smaller, thinner and fainter
         ax.plot(
             redshift,
             int(np.argmax(values[:, cell])),
             "o",
-            ms=8 if n == 0 else 6,
+            ms=9 if main else 6,
             mfc="none",
-            mec="#F2B134" if n == 0 else "#9FD3E6",
-            mew=1.2,
+            mec="white",
+            mew=1.6 if main else 0.8,
+            alpha=1.0 if main else 0.7,
+            path_effects=[Stroke(linewidth=3.2 if main else 1.8, foreground="black"), Normal()],  # seen on any cell
             clip_on=False,
-            label="main redshift" if n == 0 else "second redshift",
+            label="main redshift" if main else "second redshift",
         )
     if result.redshift_peaks:
         ax.legend(
@@ -403,22 +564,23 @@ def _probability_map(fig, spec, result):
         )
     ax.set_xlabel("Redshift")
     ax.set_title("(d) Every class at every redshift, relative to the most probable", loc="left")
-    fig.colorbar(mesh, cax=fig.add_subplot(sub[1])).ax.tick_params(labelsize=6)
+    fig.colorbar(mesh, cax=fig.add_subplot(sub[1])).ax.tick_params(labelsize=7)
 
 
 def _probabilities(fig, spec, result):
-    """The three most likely classes, and the redshift posterior of all classes, with its central 68% shaded, of SN Ia
-    and of the other classes."""
+    """The three most likely classes, SN Ia in blue, and the redshift posterior of all classes, with its central 68%
+    shaded, of SN Ia and of the other classes."""
     right = spec.subgridspec(2, 1, hspace=0.75, height_ratios=[0.75, 1])
     ax = fig.add_subplot(right[0])
     ranked = result._ranked()[:3][::-1]
-    ax.barh(range(len(ranked)), [p for _, p in ranked], color=BLUE, height=0.6)
-    ax.set_yticks(range(len(ranked)), [label for label, _ in ranked])
+    colours = [BLUE if label == "Ia" else ORANGE for label, _ in ranked]
+    ax.barh(range(len(ranked)), [p for _, p in ranked], color=colours, height=0.6)
+    ax.set_yticks(range(len(ranked)), [_name(label) for label, _ in ranked])
     for y, (_, p) in enumerate(ranked):
         if p > 0.8:
-            ax.text(p - 0.03, y, _percent(p), va="center", ha="right", fontsize=7, color="white")
+            ax.text(p - 0.03, y, _percent(p), va="center", ha="right", fontsize=8, color="white")
         else:
-            ax.text(p + 0.03, y, _percent(p), va="center", fontsize=7)
+            ax.text(p + 0.03, y, _percent(p), va="center", fontsize=8)
     ax.set_xlim(0, 1.1)
     ax.set_xticks([0, 0.5, 1])
     ax.tick_params(axis="y", length=0)
@@ -438,17 +600,8 @@ def _probabilities(fig, spec, result):
     for part, colour, label in zip(_redshift_parts(result), (BLUE, ORANGE), ("SN Ia", "Other")):
         if part.any():
             ax.plot(grid[view], part[view] / top, color=colour, lw=1, label=label)
-    ax.legend(loc="best", fontsize=6, frameon=False, handlelength=1.2, borderaxespad=0.2)
-    ax.set_ylim(0, 1.1)
+    ax.legend(loc="upper right", fontsize=7, frameon=False, handlelength=1.2, borderaxespad=0.2)
+    ax.set_ylim(0, 1.5)  # room above the curves for the legend
     ax.set_yticks([])
     ax.set_xlabel("Redshift")
-    ax.set_title("Redshift (68% shaded)", loc="left")
-
-
-def _colour_map(name, fallback):
-    """A cmasher colour map, or ``fallback`` without cmasher."""
-    try:
-        import cmasher  # noqa: F401  (it registers its maps with matplotlib)
-    except ImportError:
-        return fallback
-    return name
+    ax.set_title("Redshift", loc="left")

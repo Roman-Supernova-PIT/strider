@@ -1,15 +1,15 @@
 Reading the results
 ===================
 
-``print(result)`` gives its card:
+``print(result)`` gives its report:
 
 .. code-block:: text
 
-    STRIDER · transient                                         strider-15class-1.0
+    STRIDER: transient
     Class     Ia 100%
-    Redshift  0.869 (100% within 0.1) · 68% range 0.864–0.873
-    Match     high strength
-    Data      11 visits over 100 days · S/N 4.8
+    Redshift  0.869 (100% within 0.1), 68% range 0.864–0.873
+    Match     high
+    Data      11 visits over 100 days, S/N 4.8
 
 It reads:
 
@@ -18,19 +18,34 @@ It reads:
   range.
 - **Match**: how strong the best match is (high, medium or low) and any warnings.
 - **Data**: the visits used, the days they span and their S/N, the median signal-to-noise per pixel of the visits
-  combined.
-- **Checks**, only when one applies: a weak source, few classes trained at the redshift, untrained subtypes, or a
-  brightness comparison that failed.
+  combined, and any factor their errors were multiplied by.
+- **Checks**, only when one applies: a weak source, few classes trained at the redshift, or a brightness comparison
+  that failed.
 
-``result.plot()`` draws the figure: the spectra (one from each visit) and their combination, with the four bands
-shaded and the rest wavelength at the main redshift on top; the combined spectrum against the best-matching reference
-of the two most likely classes, each at its own redshift; each visit's brightness in the four bands, against the SN
-Ia light curves fitted to it at the most probable SN Ia redshift, in days from the fitted peak; every class at every
-redshift, with the main and second redshift peaks circled; and the class and redshift probabilities. In the
-brightness panel, each band's steady level, such as host light, is taken off the points, and the shading shows how
-far SN Ia light curves stray from the fit. The redshift curve of all classes is grey, and it is split into SN Ia and
-all other classes, so you can see whether each peak comes from SN Ia or from another class. Other includes 91bg and
-Iax. It needs matplotlib.
+``strider classify`` shows the report in a terminal with colour: the top class green at a probability of 0.9 or more,
+yellow from 0.7, orange from 0.5 and red below; the match green, yellow or red for high, medium or low. It names the
+STRIDER version and the model once, above the run; each results file records them too.
+
+``result.plot()`` draws the figure. At the top, a box gives the class, redshift, match and data, as the report does,
+with the best match and the next-best class, in the same colours; any warnings are under it. Below it are:
+
+- the combined spectrum, lightly smoothed, over the spread of the spectra (16–84%, each smoothed and scaled to it),
+  in rest wavelength at the main redshift, with the four bands shaded. Pixels whose error is more than ten times the
+  median are left out, as they carry almost no weight;
+- the combined spectrum against the best match's model spectrum, scaled to it, at its redshift;
+- each visit's brightness in the four bands, against the best match's light curves fitted to it, in days from the
+  fitted peak. Each band's steady level, such as host light, is taken off the points, so faint points can fall below
+  zero. Points with S/N below 2, where the band is faint or barely measured, are open circles. Each point counts in
+  the fit by its error, so one with a large error counts for little. The shading shows how far that class's light
+  curves stray from the fit;
+- every class at every redshift, with the main and second redshift peaks circled, over the redshifts where any class
+  is within 10⁻⁴ of the most probable;
+- the class probabilities, and the redshift curve. The redshift curve of all classes is grey, and it is split into
+  SN Ia and all other classes, so you can see whether each peak comes from SN Ia or from another class. Other
+  includes 91bg and Iax.
+
+.. image:: _static/example.png
+   :alt: The figure for the bundled example, a simulated SN Ia at redshift 0.87.
 
 The results use a prior: how common each class is at each redshift among the transients Roman will find. They also
 use your redshift prior and class priors, if you give them.
@@ -87,7 +102,7 @@ The fields
   - ``several_redshift_peaks``: the redshift has more than one likely value. Look at ``redshift_posterior``.
   - ``few_classes_trained``: fewer than half the classes had training transients at ``redshift``, so the classes
     that did not cannot be ruled out.
-  - ``brightness_failed``: the brightness term could not be computed, so the result uses the spectra alone.
+  - ``brightness_failed``: the brightness comparison could not be worked out, so the result uses the spectra alone.
 
 - ``best_match``: the class and redshift that match the data best, before the expected class mix and your priors.
 - ``next_best_class``: the best other class, at its own best redshift.
@@ -100,6 +115,15 @@ The fields
   - ``spectra and brightness disagree``: the spectra alone and the brightness alone favour different classes or
     redshifts.
 
+- ``warning_codes``: a short, fixed code for each warning and each flag raised, in a fixed order, for counting
+  results by kind: ``second_redshift``, ``spectra_brightness_disagree``, ``weak_source``, ``several_redshift_peaks``,
+  ``untrained_subtypes``, ``few_classes_trained`` and ``brightness_failed``.
+- ``light_curve_check``: whether the light curve's errors are too small for its scatter (:doc:`usage`). Its
+  ``status`` is ``too_few_points`` (too few faint points to tell), ``fine``, ``too_small`` (left as given),
+  ``corrected`` (scaled up, with ``light_curve_errors="correct"``) or ``failed``. It also gives the ``scatter`` over
+  what the errors allow; the faint ``points`` it used;
+  the ``scale`` the errors would need; the ``scale_used``; and the reason, if the check ``failed``.
+- ``brightness_failure``: why the brightness comparison could not be worked out, if it could not.
 - ``visits_used``: the visits used, by their position in your input, counting from 0.
 - ``days_observed``: the days from the first visit used to the last.
 - ``signal_to_noise``: the median signal-to-noise per pixel of the visits used, combined, with their errors
@@ -109,8 +133,10 @@ The fields
 - ``redshift_range``: the redshift range you restricted the result to, or none. The redshifts and intervals then lie
   inside it.
 - ``model`` and ``fingerprint``: the model's name and version, such as ``strider-15class-1.0``, and a code that
-  identifies the model: its network, brightness term, priors and settings. ``package_sha256`` (below) identifies
+  identifies the model: its network, brightness comparison, priors and settings. ``package_sha256`` (below) identifies
   every file of its package.
+- ``brightness_scan``: how the brightness comparison searched peak dates, ``fast`` (the default) or ``full``
+  (:doc:`usage`).
 
 The results file
 ----------------
@@ -134,14 +160,23 @@ there are:
 - ``top_class_redshift`` and ``second_class_redshift``: the redshift of each of the two most likely classes;
 - ``package_sha256``: a checksum covering every file of the model package;
 - ``strider_version``: the version of STRIDER that wrote the row;
-- ``failure``: why the transient could not be classified, or empty.
+- ``failure``: why the transient could not be classified, or empty;
+- ``light_curve_check``, ``light_curve_scatter``, ``light_curve_error_scale`` and ``light_curve_error_scale_used``:
+  the light curve's error check, and ``brightness_failure``;
+- ``status``: ``ok``, ``spectra_only`` (the spectra alone were used) or ``failed``;
+- ``warning_codes``, and ``input_fingerprint``: a code for the transient's input, the same on any machine;
+- ``n_spectra_used`` and ``last_mjd_used``: how many spectra were used, and the date of the last;
+- ``settings_fingerprint``: a code for the run's model and settings;
+- ``seconds`` and ``cpu_seconds``: how long classifying the transient took, empty for transients scored together on
+  a GPU; ``peak_memory_mb``: the most memory the process had used by then, in MB;
+- ``schema_version``: the version of this list of columns.
 
-The results do not record the priors or options you gave; keep the command with them.
+A parquet results file also keeps a record of its run (:doc:`running_at_scale`).
 
 Each entry of ``dropped_visits`` reads ``"<position>: <reason>"``. In a CSV file, ``visits_used``,
 ``dropped_visits`` and ``warnings`` are text, the warnings separated by semicolons. The parquet table's metadata holds
-``redshift_grid`` and ``redshift_cell_widths``. Tables from runs of one model have the same columns, so you can stack
-them.
+``redshift_grid`` and ``redshift_cell_widths``. Tables from runs of one model and one STRIDER version have the same
+columns, so you can stack them.
 
 Two more files are for analysis:
 
@@ -154,8 +189,6 @@ Two more files are for analysis:
   qp-prob``).
 
 In a batch (``classify_many``, or the command line), the results and the evidence maps are written as the batch
-goes, ``chunk`` transients at a time. If the run stops with an error or you stop it (Ctrl-C, or a scheduler's
-SIGTERM), it first writes the transients done so far. A run killed outright cannot: a CSV file keeps the rows written
-before, and a parquet file's rows so far are in the folder ``<file>.parquet.parts``, which
-``pyarrow.parquet.read_table`` reads (remove it before running again). JSON results and the redshift curves are
-written only at the end, so for long batches use parquet.
+goes, ``chunk`` transients at a time. A parquet run that stops, even one killed outright, can carry on with
+``--resume`` (:doc:`running_at_scale`). A CSV file keeps the rows written before a stop, and cannot carry on. JSON
+results and the redshift curves are written only at the end, so for long batches use parquet.

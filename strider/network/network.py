@@ -82,7 +82,7 @@ class Network(nn.Module):
             raise ValueError(
                 f"spectral_model.pt has the classes {list(spectral_model['class_names'])} and "
                 f"model_config.json {self.classes}; this STRIDER needs them equal. Upgrade "
-                "STRIDER (pip install -U roman-snpit-strider), or use a model package made for this "
+                "STRIDER (git pull, then pip install .), or use a model package made for this "
                 "version"
             )
         self.chunk_size = chunk_size
@@ -180,7 +180,7 @@ class Network(nn.Module):
         if unknown or missing:
             raise ValueError(
                 f"weights.pt does not fit this STRIDER: unknown {unknown}, missing {missing}. Upgrade "
-                "STRIDER (pip install -U roman-snpit-strider), or use a model package made for this "
+                "STRIDER (git pull, then pip install .), or use a model package made for this "
                 "version"
             )
         state = {key: weights[name] for key, name in names.items()}

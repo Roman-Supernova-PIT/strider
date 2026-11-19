@@ -1,6 +1,7 @@
 """Classifying with the synthetic package: one transient, a batch, and the batch tables."""
 
 import json
+import sys
 from dataclasses import replace
 from importlib.resources import files
 
@@ -139,19 +140,19 @@ def test_the_readme_quickstart_runs_as_written(model, tmp_path, monkeypatch, cap
                 return found
             found.append(line[4:])
 
-    def labels(card):
-        """Each line's label, once every line has the card's shape."""
+    def labels(report):
+        """Each line's label, once every line has the report's shape."""
         shapes = {
-            "Class": r"[\w-]+ (\d+|<1)%( · [\w-]+ (\d+|<1)%){0,2}",
-            "Redshift": r"\d\.\d+ \((\d+|<1)% within 0\.1\) · 68% range \d\.\d+–\d\.\d+",
-            "Match": r"(high|medium|low) strength( · .+)?",
-            "Data": r"\d+ visits?( over \d+ days| on one night)?( · S/N \d+\.\d)?( · errors × \d+\.\d\d)?",
+            "Class": r"[\w-]+ (\d+|<1)%(   [\w-]+ (\d+|<1)%){0,2}",
+            "Redshift": r"\d\.\d+ \((\d+|<1)% within 0\.1\), 68% range \d\.\d+–\d\.\d+",
+            "Match": r"(high|medium|low)(, .+)?",
+            "Data": r"\d+ visits?( over \d+ days| on one night)?(, S/N \d+\.\d)?(, errors × \d+\.\d\d)?",
             "Checks": r".+",
         }
-        assert len(card[0]) == 79 and card[0].startswith("STRIDER · transient ")
-        for line in card[1:]:
+        assert report[0] == "STRIDER: transient"
+        for line in report[1:]:
             assert re.fullmatch(shapes[line[:10].rstrip()], line[10:]), line
-        return [line[:10].rstrip() for line in card[1:]]
+        return [line[:10].rstrip() for line in report[1:]]
 
     # the test model stands in for the released one, which load_model() downloads
     fetched = []
@@ -159,21 +160,19 @@ def test_the_readme_quickstart_runs_as_written(model, tmp_path, monkeypatch, cap
     monkeypatch.chdir(tmp_path)
     exec("\n".join(block(".. code-block:: python")), {})
     printed = capsys.readouterr().out.splitlines()
-    assert printed == model.classify(strider.load_example()).card().splitlines()
+    assert printed == model.classify(strider.load_example()).report().splitlines()
     assert (tmp_path / "example.png").stat().st_size > 10_000
     shown = [line for line in block(".. code-block:: text") if line]
-    released = Path(registry.MODELS[registry.DEFAULT_MODEL]["url"]).name.removesuffix(".tar.gz")
-    assert shown[0].endswith(released) and printed[0].endswith(model.name)
     assert labels(shown) == labels(printed)[:4] == ["Class", "Redshift", "Match", "Data"]
     # the command line names the transient after its file
     command = next(line[4:] for line in lines if line.startswith("    strider classify "))
     name = Path(command.split()[-1]).stem
     (tmp_path / f"{name}.csv").write_bytes((files("strider") / "data" / "example.csv").read_bytes())
     main(command.split()[1:])
-    assert capsys.readouterr().out.splitlines() == [
-        printed[0].replace("transient".ljust(len(name)), name, 1),
-        *printed[1:],
-    ]
+    from strider import terminal  # the command shows the same report, ruled
+
+    expected = terminal.report(model.classify(strider.load_example()), name, terminal.Style(sys.stdout))
+    assert capsys.readouterr().out.splitlines() == expected.splitlines()
     assert fetched == [None, None]
 
 
@@ -236,8 +235,8 @@ def test_the_error_scale_is_off_by_default_and_reaches_every_path(model):
             replace(transient, visits=[transient.visits[i] for i in first[k].visits_used]), error_scale="auto"
         )
         assert first[k].class_probabilities == part.class_probabilities and first[k].error_scale == part.error_scale
-    shown = f"Data      11 visits over 100 days · S/N {scaled.signal_to_noise:.1f} · errors × 2.00"
-    assert shown in scaled.card().splitlines() and "errors" not in plain.card()
+    shown = f"Data      11 visits over 100 days, S/N {scaled.signal_to_noise:.1f}, errors × 2.00"
+    assert shown in scaled.report().splitlines() and "errors" not in plain.report()
     for wrong in (0, True, np.nan, 1e4, 1 + 2j, "2", "AUTO", None):
         with pytest.raises(ValueError, match="error_scale"):
             model.classify(*data, error_scale=wrong)
@@ -284,9 +283,29 @@ def test_a_worker_refuses_a_package_whose_files_changed_though_its_fingerprint_d
     assert strider.load_model(changed).fingerprint == loaded.fingerprint
     monkeypatch.setattr(torch, "set_num_threads", lambda count: None)  # as a worker would, but not here
     monkeypatch.setattr(module, "_worker_model", None)
-    module._start_worker(first, loaded.files_sha256, False)
+    module._start_worker(first, loaded.files_sha256, False, "fast")
     with pytest.raises(RuntimeError, match="changed after it was loaded"):
-        module._start_worker(changed, loaded.files_sha256, False)
+        module._start_worker(changed, loaded.files_sha256, False, "fast")
+
+
+def test_the_fast_scan_is_the_default_and_every_result_and_worker_keeps_the_scan(model):
+    objects = dict(list(read_spectra(EXAMPLE).items())[:2])
+    assert model.scan == "fast" and model.brightness.scan == "fast"
+    full = strider.load_model(ARCHIVE, scan="full")
+    assert full.scan == "full" and full.fingerprint == model.fingerprint
+    threads = torch.get_num_threads()
+    torch.set_num_threads(1)  # as each worker runs
+    try:
+        alone = full.classify_many(objects)
+    finally:
+        torch.set_num_threads(threads)
+    together = full.classify_many(objects, workers=2)
+    for key, result in alone.items():
+        assert result.brightness_scan == together[key].brightness_scan == "full"
+        assert np.array_equal(together[key].redshift_posterior, result.redshift_posterior)
+    assert all(r.brightness_scan == "fast" for r in model.classify_many(objects).values())
+    with pytest.raises(ValueError, match="scan"):
+        strider.load_model(ARCHIVE, scan="quick")
 
 
 def test_workers_give_the_results_of_one_process_in_order(model):
@@ -320,11 +339,11 @@ def test_transients_scored_together_give_the_results_of_one_at_a_time(model, mon
 
     sizes, evaluate = [], model._evaluate_many
 
-    def on_the_cpu(prepared):  # on a GPU model; only the default batch reads the device here
+    def on_the_cpu(prepared, scale_brightness=False):  # on a GPU model; only the default batch reads the device here
         sizes.append(len(prepared))
         model.device = "cpu"
         try:
-            return evaluate(prepared)
+            return evaluate(prepared, scale_brightness)
         finally:
             model.device = "cuda"
 
@@ -343,11 +362,11 @@ def test_a_batch_out_of_gpu_memory_is_halved_and_tried_again(model, monkeypatch)
     alone = model.classify_many(objects)
     sizes, evaluate = [], model._evaluate_many
 
-    def small_gpu(prepared):
+    def small_gpu(prepared, scale_brightness=False):
         sizes.append(len(prepared))
         if len(prepared) > 2:
             raise torch.cuda.OutOfMemoryError("CUDA out of memory (faked)")
-        return evaluate(prepared)
+        return evaluate(prepared, scale_brightness)
 
     monkeypatch.setattr(model, "_evaluate_many", small_gpu)
     with pytest.warns(UserWarning, match="out of GPU memory scoring 3 transients together; trying 1"):
@@ -359,7 +378,9 @@ def test_a_batch_out_of_gpu_memory_is_halved_and_tried_again(model, monkeypatch)
     monkeypatch.setattr(
         model,
         "_evaluate_many",
-        lambda prepared: (_ for _ in ()).throw(torch.cuda.OutOfMemoryError("CUDA out of memory (faked)")),
+        lambda prepared, scale_brightness=False: (_ for _ in ()).throw(
+            torch.cuda.OutOfMemoryError("CUDA out of memory (faked)")
+        ),
     )
     with pytest.raises(torch.cuda.OutOfMemoryError):
         model._scored([None], 1)
@@ -376,7 +397,7 @@ def test_a_batch_out_of_gpu_memory_is_freed_before_it_is_tried_again():
     class Scorer:
         _scored = strider.Model._scored
 
-        def _evaluate_many(self, part):
+        def _evaluate_many(self, part, scale_brightness=False):
             held.append(sum(ref() is not None for ref in attempts))
             work = torch.empty(1000)  # stands for the batch's intermediates, in the frame that fails
             attempts.append(weakref.ref(work))
@@ -396,10 +417,10 @@ def test_a_transient_the_network_cannot_score_gets_its_reason_and_the_batch_goes
     alone = model.classify_many(objects)
     evaluate = model._evaluate_many
 
-    def failing(prepared):  # the eleven-visit transient cannot be scored, alone or with others
+    def failing(prepared, scale_brightness=False):  # the eleven-visit transient cannot be scored, alone or with others
         if any(len(p.days) == 11 for p in prepared):
             raise torch.linalg.LinAlgError("linalg.eigh: the algorithm failed to converge (faked)")
-        return evaluate(prepared)
+        return evaluate(prepared, scale_brightness)
 
     monkeypatch.setattr(model, "_evaluate_many", failing)
     together = model.classify_many(objects, batch=3)
@@ -461,9 +482,9 @@ def test_the_result_fuses_the_spectrum_and_the_brightness_term(model, monkeypatc
     with pytest.warns(UserWarning, match=r"the brightness term could not be computed \(faked\)"):
         failed = model.classify(transient)
     assert fused(failed.log_evidence, 0.0) and failed.to_dict()["flags"]["brightness_failed"]
-    checks = failed.card().splitlines()[-1]
+    checks = failed.report().splitlines()[-1]
     assert checks.startswith("Checks    ") and checks.endswith("brightness failed, spectra alone")
-    assert "brightness failed" not in result.card()
+    assert "brightness failed" not in result.report()
     assert results_table({"one": failed}, model, summary=True).column("brightness_failed").to_pylist() == [True]
 
 
@@ -480,7 +501,8 @@ def test_a_stop_during_one_file_s_write_writes_no_transient_twice(model, tmp_pat
     monkeypatch.setattr(io.EvidenceMapsFile, "write", stopped)
     with pytest.raises(SystemExit):
         model.classify_many(objects, tmp_path / "out.parquet", evidence_maps=tmp_path / "maps.h5", chunk=3)
-    assert pq.read_table(tmp_path / "out.parquet").column("object_id").to_pylist() == list(objects)
+    assert not (tmp_path / "out.parquet").exists()  # a stopped run keeps its parts, to resume
+    assert pq.read_table(tmp_path / "out.parquet.parts").column("object_id").to_pylist() == list(objects)
 
 
 def test_a_batch_that_stops_first_writes_the_transients_done(model, tmp_path, monkeypatch):
@@ -496,7 +518,14 @@ def test_a_batch_that_stops_first_writes_the_transients_done(model, tmp_path, mo
     monkeypatch.setattr(model, "_each", stopped)
     with pytest.raises(KeyboardInterrupt):
         model.classify_many(objects, tmp_path / "out.parquet", chunk=5)
-    assert pq.read_table(tmp_path / "out.parquet").column("object_id").to_pylist() == list(objects)[:2]
+    assert pq.read_table(tmp_path / "out.parquet.parts").column("object_id").to_pylist() == list(objects)[:2]
+    monkeypatch.undo()
+    with pytest.raises(ValueError, match="is left from a run that stopped: resume it"):
+        model.classify_many(objects, tmp_path / "out.parquet")
+    found = model.classify_many(objects, tmp_path / "out.parquet", resume=True)
+    assert list(found) == list(objects)[2:]  # the two saved are skipped
+    assert pq.read_table(tmp_path / "out.parquet").column("object_id").to_pylist() == list(objects)
+    assert not (tmp_path / "out.parquet.parts").exists()
 
 
 def test_every_batch_gives_one_schema_with_the_grid(model, tmp_path):
@@ -509,7 +538,10 @@ def test_every_batch_gives_one_schema_with_the_grid(model, tmp_path):
         model.classify_many(batch, tmp_path / f"{name}.parquet", chunk=2)
         tables.append(pq.read_table(tmp_path / f"{name}.parquet"))
     assert [table.num_rows for table in tables] == [4, 1, 0]
-    assert all(table.schema.equals(tables[0].schema, check_metadata=True) for table in tables)
+    assert all(table.schema.equals(tables[0].schema) for table in tables)  # each run's record differs
+    assert all(
+        table.schema.metadata[b"redshift_grid"] == tables[0].schema.metadata[b"redshift_grid"] for table in tables
+    )
     metadata = tables[2].schema.metadata
     np.testing.assert_allclose(json.loads(metadata[b"redshift_grid"]), model.redshift_grid)
     np.testing.assert_allclose(json.loads(metadata[b"redshift_cell_widths"]), model.widths)
@@ -530,13 +562,13 @@ def test_a_table_of_spectra_is_checked_as_it_is_read(tmp_path):
         read_spectra(tmp_path / "no_error.parquet")
     rows[3]["mjd"] = None
     pq.write_table(pa.Table.from_pylist(rows), tmp_path / "no_mjd.parquet")
-    with pytest.raises(ValueError, match="a visit of object sn_ia has no finite mjd"):
+    with pytest.raises(ValueError, match="object sn_ia: a visit has no finite mjd"):
         read_spectra(tmp_path / "no_mjd.parquet")
     found = read_spectra(EXAMPLE)["masked_and_bad_pixels"].visits[0]
     assert found.mask.dtype == bool and found.wavelength.dtype == np.float64
 
 
-def test_a_transient_or_a_table_gives_the_result_of_its_arrays_and_prints_its_card(model):
+def test_a_transient_or_a_table_gives_the_result_of_its_arrays_and_prints_its_report(model):
     transient = read_spectra(EXAMPLE)["sn_ia"]
     alone = model.classify(*lists(transient))
     found = model.classify(Transient(transient.visits))
@@ -544,24 +576,26 @@ def test_a_transient_or_a_table_gives_the_result_of_its_arrays_and_prints_its_ca
     assert np.array_equal(found.redshift_posterior, alone.redshift_posterior)
     ranked = sorted(found.class_probabilities.items(), key=lambda item: -item[1])
     assert (found.top_class, found.top_probability, found.second_class) == (*ranked[0], ranked[1][0])
-    card = found.card("my transient").splitlines()
-    assert str(found) == found.card() and len(card) == 6 and all(len(line) <= 79 for line in card)
-    assert card[0].startswith("STRIDER · my transient") and card[0].endswith(model.name) and len(card[0]) == 79
-    assert card[1] == "Class     " + " · ".join(f"{name} {100 * probability:.0f}%" for name, probability in ranked[:3])
+    report = found.report("my transient").splitlines()
+    assert str(found) == found.report() == found.card()  # card, its old name
+    assert len(report) == 6 and all(len(line) <= 79 for line in report)
+    assert report[0] == "STRIDER: my transient"  # the model is named once, not on every report
+    classes = "   ".join(f"{name} {100 * probability:.0f}%" for name, probability in ranked[:3])
+    assert report[1] == "Class     " + classes
     low, high = found.redshift_68
-    assert card[2] == (
-        f"Redshift  {found.redshift:.2f} ({100 * found.redshift_probability:.0f}% within 0.1) · 68% range "
+    assert report[2] == (
+        f"Redshift  {found.redshift:.2f} ({100 * found.redshift_probability:.0f}% within 0.1), 68% range "
         f"{low:.2f}–{high:.2f}"
     )
-    assert card[3] == f"Match     {found.match_strength} strength" and found.warnings == []
-    assert card[4] == f"Data      11 visits over {found.days_observed:.0f} days · S/N {found.signal_to_noise:.1f}"
+    assert report[3] == f"Match     {found.match_strength}" and found.warnings == []
+    assert report[4] == f"Data      11 visits over {found.days_observed:.0f} days, S/N {found.signal_to_noise:.1f}"
     assert [flag for flag, raised in found.flags.items() if raised] == ["weak_source"]
-    assert card[5] == f"Checks    weak source ({100 * found.source_probability:.0f}%)"
-    assert not any(mark in found.card() for mark in ("─", "█", "redshift peak"))
+    assert report[5] == f"Checks    weak source ({100 * found.source_probability:.0f}%)"
+    assert not any(mark in found.report() for mark in ("─", "█", "redshift peak"))
     sure = replace(
         found, class_probabilities=dict.fromkeys(model.classes, 0.0) | {"Ia": 0.98, "IIP": 0.012, "IIb": 0.008}
     )
-    assert sure.card().splitlines()[1] == "Class     Ia 98% · IIP 1%"
+    assert sure.report().splitlines()[1] == "Class     Ia 98%   IIP 1%"
     assert repr(found) == f"<Classification {ranked[0][0]} {100 * ranked[0][1]:.0f}%, z {found.redshift:.2f}>"
     assert 0.0 < found.redshift_probability <= 1.0 + 1e-12
     with pytest.raises(ValueError, match="give a table with one row per pixel"):
@@ -665,45 +699,45 @@ def test_the_test_model_is_named(model):
     assert strider.load_model("test").fingerprint == model.fingerprint
 
 
-def test_the_card_says_when_no_class_was_trained_at_the_redshift(model):
+def test_the_report_says_when_no_class_was_trained_at_the_redshift(model):
     import dataclasses
 
     result = model.classify(strider.load_example())
     calm = dataclasses.replace(result, flags=dict.fromkeys(result.flags, False))
-    assert [line[:10].rstrip() for line in calm.card("x").splitlines()[1:]] == ["Class", "Redshift", "Match", "Data"]
+    assert [line[:10].rstrip() for line in calm.report("x").splitlines()[1:]] == ["Class", "Redshift", "Match", "Data"]
     flags = {**calm.flags, "few_classes_trained": True}
     none = dataclasses.replace(calm, trained_classes=[], flags=flags)
-    assert none.card("x").splitlines()[5:] == ["Checks    no class trained here"]
+    assert none.report("x").splitlines()[5:] == ["Checks    no class trained here"]
     few = dataclasses.replace(calm, trained_classes=["Ia", "Iax"], flags=flags)
-    assert few.card("x").splitlines()[5:] == ["Checks    trained here: Ia, Iax only"]
+    assert few.report("x").splitlines()[5:] == ["Checks    trained here: Ia, Iax only"]
     every = dataclasses.replace(few, flags=dict.fromkeys(result.flags, True), untrained_share=0.12)
-    assert every.card("x").splitlines()[5:] == [
-        f"Checks    weak source ({100 * result.source_probability:.0f}%) · trained here: Ia, Iax only",
-        "          untrained subtypes 12% · brightness failed, spectra alone",
+    assert every.report("x").splitlines()[5:] == [
+        f"Checks    weak source ({100 * result.source_probability:.0f}%); trained here: Ia, Iax only;",
+        "          untrained subtypes 12%; brightness failed, spectra alone",
     ]
 
 
-def test_the_card_lists_the_warnings(model):
+def test_the_report_lists_the_warnings(model):
     import dataclasses
 
     result = model.classify(strider.load_example())
     warned = dataclasses.replace(result, warnings=["second redshift near z 1.20", "spectra and brightness disagree"])
-    card = warned.card("x").splitlines()
-    assert card[3] == f"Match     {result.match_strength} strength · second redshift near z 1.20"
-    assert card[4] == "          spectra and brightness disagree"
-    assert card[5].startswith("Data")
-    assert max(map(len, card)) <= 79
+    report = warned.report("x").splitlines()
+    warnings = "second redshift near z 1.20, spectra and brightness disagree"
+    assert report[3] == f"Match     {result.match_strength}, {warnings}"
+    assert report[4].startswith("Data")
+    assert max(map(len, report)) <= 79
 
 
-def test_the_card_on_one_night_with_a_long_name_and_no_signal(model):
+def test_the_report_on_one_night_with_a_long_name_and_no_signal(model):
     transient = read_spectra(EXAMPLE)["sn_ia"]
     data = lists(transient)
     data[3] = [60000.0, 60000.2] + list(data[3][2:])
     found = model.classify(*(part[:2] for part in data))
     found.signal_to_noise = -0.4
-    card = found.card("a very long name that would otherwise run straight into the model's own name").splitlines()
-    assert all(len(line) <= 79 for line in card) and card[0].endswith(model.name) and "…" in card[0]
-    assert card[4] == "Data      2 visits on one night · S/N 0.0"
+    report = found.report("a very long name that would otherwise run straight into the model's own name").splitlines()
+    assert all(len(line) <= 79 for line in report) and report[0].endswith("…")
+    assert report[4] == "Data      2 visits on one night, S/N 0.0"
 
 
 def test_classify_many_refuses_two_outputs_in_one_file(model, tmp_path):
@@ -788,3 +822,125 @@ def test_the_first_spectra_check_priors_before_the_spectra(model):
     unusable = Transient([Visit(np.geomspace(7400, 18300, 20), np.full(20, np.nan), np.ones(20), 60000.0)])
     with pytest.raises(ValueError, match="host"):
         model.classify_first(unusable, host_redshift=0.5)
+
+
+def test_a_batch_takes_transients_one_at_a_time_and_keeps_the_input_order(model, tmp_path):
+    from strider.io import iter_spectra
+
+    objects = read_spectra(EXAMPLE)
+    alone = model.classify_many(objects)
+    assert model.classify_many(iter_spectra(EXAMPLE)).keys() == alone.keys()
+    pairs = [("unreadable", "ValueError: a visit has no finite mjd"), *reversed(objects.items())]
+    for workers in (1, 2):
+        found = model.classify_many(iter(pairs), tmp_path / f"{workers}.parquet", workers=workers)
+        assert list(found) == [key for key, _ in pairs] and found["unreadable"] == pairs[0][1]
+        for key in objects:
+            assert found[key].p_ia == pytest.approx(alone[key].p_ia, abs=1e-6)
+        rows = {row["object_id"]: row for row in pq.read_table(tmp_path / f"{workers}.parquet").to_pylist()}
+        assert rows.keys() == found.keys() and rows["unreadable"]["status"] == "failed"
+        assert rows["unreadable"]["input_fingerprint"] is None and rows["unreadable"]["seconds"] is None
+    with pytest.raises(ValueError, match="two transients have the id 'sn_ia'; give each a distinct id"):
+        model.classify_many(iter([*objects.items(), ("sn_ia", objects["sn_ia"])]))
+
+
+def test_the_light_curve_check_is_recorded_and_corrects_only_when_asked(model, monkeypatch):
+    from strider import brightness, io
+
+    transient = read_spectra(EXAMPLE)["sn_ia"]
+    plain = model.classify(transient)
+    assert plain.light_curve_check["status"] in ("too_few_points", "fine", "too_small")
+    assert plain.light_curve_check["scale_used"] == 1.0
+    check = brightness.ErrorCheck(2.0, 2.1, 0.2, 40)  # as for a light curve twice as noisy as its errors
+    monkeypatch.setattr(brightness, "check_errors", lambda *rows: check)
+    reported = model.classify(transient)
+    applied = model.classify(transient, light_curve_errors="correct")
+    assert reported.class_probabilities == plain.class_probabilities  # reporting changes nothing
+    assert reported.light_curve_check == {
+        "status": "too_small",
+        "scatter": 2.1,
+        "scatter_squared_se": 0.2,
+        "points": 40,
+        "scale": 2.0,
+        "scale_used": 1.0,
+        "failure": None,
+    }
+    assert applied.light_curve_check["status"] == "corrected" and applied.light_curve_check["scale_used"] == 2.0
+    assert applied.p_ia != reported.p_ia and "light-curve errors × 2.00" in applied.report()
+    prepared = model._prepare(*lists(transient), None)
+    days, band, flux, error = prepared.band_rows()
+    by_hand = model.brightness.score(days, band, flux, 2.0 * error, prepared.seed).log_ratio
+    np.testing.assert_array_equal(model._brightness(prepared, True)["brightness"], by_hand)
+    row = io.results_table({"one": applied}, model).to_pylist()[0]
+    assert (row["light_curve_check"], row["light_curve_error_scale_used"]) == ("corrected", 2.0)
+    with pytest.raises(ValueError, match="not both: they would correct the same noise twice"):
+        model.classify(transient, error_scale=1.5, light_curve_errors="correct")
+    with pytest.raises(ValueError, match='light_curve_errors must be "check" or "correct"'):
+        model.classify_many({"one": transient}, light_curve_errors="yes")
+
+
+def test_when_both_solvers_fail_the_result_uses_the_spectrum_and_says_why(model, monkeypatch, tmp_path):
+    import scipy.linalg
+    import torch
+
+    transient = read_spectra(EXAMPLE)["sn_ia"]
+    plain = model.classify(transient)
+
+    def fails(*args, **kwargs):
+        raise torch.linalg.LinAlgError("linalg.eigh: the algorithm failed to converge (faked)")
+
+    monkeypatch.setattr(torch.linalg, "eigh", fails)
+    recovered = model.classify(transient)  # SciPy's driver takes the same matrices
+    assert not recovered.flags["brightness_failed"] and recovered.brightness_failure is None
+    assert recovered.p_ia == pytest.approx(plain.p_ia, abs=1e-9)
+    monkeypatch.setattr(scipy.linalg, "eigh", lambda *a, **k: (_ for _ in ()).throw(np.linalg.LinAlgError("no")))
+    with pytest.warns(UserWarning, match="the brightness term could not be computed"):
+        failed = model.classify_many({"sn_ia": transient}, tmp_path / "out.parquet")["sn_ia"]
+    assert failed.flags["brightness_failed"] and failed.brightness_failure == "LinAlgError: no"
+    row = pq.read_table(tmp_path / "out.parquet").to_pylist()[0]
+    assert row["status"] == "spectra_only" and row["brightness_failure"] == "LinAlgError: no"
+    assert "brightness_failed" in row["warning_codes"]
+
+
+def test_max_spectra_uses_the_first_spectra_in_time_order_and_says_which_were_left(model, tmp_path):
+    from strider.runs import read_record
+
+    objects = read_spectra(EXAMPLE)
+    transient = objects["sn_ia"]
+    capped = model.classify(transient, max_spectra=3)
+    first = model.classify_first(transient, steps=[3])[3]
+    assert capped.class_probabilities == first.class_probabilities and capped.visits_used == first.visits_used
+    assert len(capped.visits_used) == 3 and len(capped.dropped_visits) == 8
+    assert set(capped.dropped_visits.values()) == {"after the first 3 spectra (max_spectra)"}
+    assert sorted([*capped.visits_used, *capped.dropped_visits]) == list(range(11))
+    every = model.classify(transient)
+    assert model.classify(transient, max_spectra=11).class_probabilities == every.class_probabilities
+    alone = {key: model.classify(t, max_spectra=1) for key, t in objects.items()}
+    for batch, workers in ((1, 1), (3, 1), (1, 2)):
+        many = model.classify_many(objects, batch=batch, workers=workers, max_spectra=1)
+        for key, result in alone.items():
+            assert (
+                many[key].p_ia == pytest.approx(result.p_ia, abs=1e-6) and many[key].visits_used == result.visits_used
+            )
+    for wrong in (0, 2.5, "3"):
+        with pytest.raises(ValueError, match="max_spectra must be a whole number of at least 1"):
+            model.classify(transient, max_spectra=wrong)
+    model.classify_many(objects, tmp_path / "out.parquet", max_spectra=2)
+    assert read_record(tmp_path / "out.parquet")["settings"]["max_spectra"] == 2
+
+
+def test_a_light_curve_check_that_fails_leaves_the_result_as_it_was(model, monkeypatch):
+    from strider import brightness
+
+    transient = read_spectra(EXAMPLE)["sn_ia"]
+    plain = model.classify(transient)
+
+    def fails(*rows):
+        raise np.linalg.LinAlgError("SVD did not converge (faked)")
+
+    monkeypatch.setattr(brightness, "check_errors", fails)
+    for mode in ("check", "correct"):
+        found = model.classify(transient, light_curve_errors=mode)
+        assert found.class_probabilities == plain.class_probabilities
+        assert found.light_curve_check["status"] == "failed"
+        assert found.light_curve_check["failure"] == "LinAlgError: SVD did not converge (faked)"
+        assert found.light_curve_check["scale_used"] == 1.0

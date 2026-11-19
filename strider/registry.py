@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pooch
 
-__all__ = ["MODELS", "DEFAULT_MODEL", "TEST_MODEL", "model_dir", "model_path", "fetch"]
+__all__ = ["MODELS", "DEFAULT_MODEL", "TEST_MODEL", "model_dir", "model_path", "fetch", "name_of"]
 
 # one entry per released package; the package itself states its format
 MODELS: dict[str, dict[str, str]] = {
@@ -29,6 +29,14 @@ def model_dir() -> Path:
 def model_path(name: str) -> Path:
     """Return where the released model ``name`` is downloaded to."""
     return model_dir() / f"{name}.tar.gz"
+
+
+def name_of(package: str) -> str:
+    """Return the name a model loads by, from its name and version (``strider-15class`` for ``strider-15class-1.0``);
+    ``package`` itself if it is not a released model or the test model."""
+    if fetch(TEST_MODEL).name == f"{package}.tar.gz":
+        return TEST_MODEL
+    return next((name for name, entry in MODELS.items() if entry["url"].endswith(f"/{package}.tar.gz")), package)
 
 
 def fetch(name: str | None = None) -> Path:

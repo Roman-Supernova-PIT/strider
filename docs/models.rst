@@ -38,5 +38,5 @@ over, its priors, its running time, its known limits and how to cite it.
 
 The first model, ``strider-15class``, was trained with no core-collapse supernovae below redshift about 0.65. Below
 0.5 it has seen only SNe Ia, SNe Iax and kilonovae, so it cannot tell an SN Ia from a core-collapse supernova there,
-and a result below 0.5 says so in its checks ("trained at this redshift: Ia, Iax, KN only"). Between 0.5 and 0.65 its
+and a result below 0.5 says so in its checks ("trained here: Ia, Iax, KN only"). Between 0.5 and 0.65 its
 core-collapse classes rest on what it learned at higher redshift.

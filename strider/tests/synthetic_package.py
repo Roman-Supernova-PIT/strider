@@ -276,20 +276,62 @@ def _npz_bytes(arrays):
 
 
 def write_expected(path=ARCHIVE):
-    """Store the results of the bundled example for the package at ``path``, by its fingerprint."""
+    """Store the results of the bundled example for the package at ``path``, by its fingerprint and scan."""
     import strider
     from strider.cli import EXAMPLE, example_results
     from strider.io import read_spectra
 
-    model = strider.load_model(path)
     expected = Path(__file__).parents[1] / "data" / "example_expected.json"
     stored = json.loads(expected.read_text()) if expected.exists() else {}
+    entry = {}
+    for scan in ("fast", "full"):
+        model = strider.load_model(path, scan=scan)
+        entry[scan] = example_results(model.classify_many(read_spectra(EXAMPLE)))
     stored = {key: value for key, value in stored.items() if value["model"] != model.name}  # an earlier build's
-    stored[model.fingerprint] = {"model": model.name} | example_results(model.classify_many(read_spectra(EXAMPLE)))
+    stored[model.fingerprint] = {"model": model.name} | entry
     expected.write_text(json.dumps(stored, indent=1) + "\n")
     return expected
+
+
+def write_layout_examples():
+    """Write the bundled example in two other layouts a pipeline may give: one row per pixel, with each visit's
+    ``visit_id`` (``example_by_pixel.parquet``); and one row per visit with names of its own, wavelength in microns and
+    flux per unit frequency (``example_own_names.parquet``, read with ``--columns
+    object_id=SNID,wavelength=lam,error=flux_error --wavelength-unit micron --flux-density f_nu``)."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    from strider.io import EXAMPLE, SPEED_OF_LIGHT, read_spectra
+
+    data = Path(__file__).parents[1] / "data"
+    pixels = {name: [] for name in ("object_id", "visit_id", "mjd", "wavelength", "flux", "error", "mask")}
+    visits = []
+    for key, transient in read_spectra(EXAMPLE).items():
+        for n, visit in enumerate(transient.visits):
+            size = len(visit.flux)
+            mask = np.zeros(size, bool) if visit.mask is None else visit.mask
+            for name, values in (("object_id", [key] * size), ("visit_id", [n] * size), ("mjd", [visit.mjd] * size)):
+                pixels[name] += values
+            for name, values in (("wavelength", visit.wavelength), ("flux", visit.flux), ("error", visit.error)):
+                pixels[name] += values.tolist()
+            pixels["mask"] += mask.tolist()
+            to_f_nu = visit.wavelength**2 / SPEED_OF_LIGHT
+            visits.append(
+                {
+                    "SNID": key,
+                    "mjd": visit.mjd,
+                    "lam": (visit.wavelength / 1e4).tolist(),
+                    "flux": (visit.flux * to_f_nu).tolist(),
+                    "flux_error": (visit.error * to_f_nu).tolist(),
+                    "mask": None if visit.mask is None else visit.mask.tolist(),
+                }
+            )
+    pq.write_table(pa.table(pixels), data / "example_by_pixel.parquet")
+    pq.write_table(pa.Table.from_pylist(visits), data / "example_own_names.parquet")
+    return data / "example_by_pixel.parquet", data / "example_own_names.parquet"
 
 
 if __name__ == "__main__":
     print(write_archive())
     print(write_expected())
+    print(*write_layout_examples(), sep="\n")

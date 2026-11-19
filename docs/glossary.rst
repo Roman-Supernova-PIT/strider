@@ -22,16 +22,14 @@ redshift cell
     One of the redshift bins STRIDER scores. ``redshift_grid`` gives their centres.
 source probability
     The probability that the visits hold a transient at all.
-subtype
-    A simulated type within a class. In ``strider-15class``, each class is a single subtype.
 model package
     The one file that holds a model, with its priors and model card.
 model card
     A short description of a model: its classes, training, valid range, performance and known failures.
 fingerprint
-    A code that identifies a model: its network, brightness term, priors and settings. Every result records it,
+    A code that identifies a model: its network, brightness comparison, priors and settings. Every result records it,
     with a checksum of every file of the model package.
 PIT
     The Roman Supernova Project Infrastructure Team, which maintains STRIDER.
 SMDC
-    The Roman computing centre where the PIT runs its software (:doc:`smdc`).
+    The Roman computing centre where the PIT runs its software.

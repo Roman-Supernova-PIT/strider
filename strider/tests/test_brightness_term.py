@@ -125,3 +125,56 @@ def test_a_peak_date_that_leaves_a_visit_outside_the_templates_is_moved():
 
 def test_one_visit_has_no_fitted_curve(result):
     assert TERM.curve(DAYS[:4], BAND[:4], FLUX[:4], ERROR[:4], 0, 0.5, result.peak_date[0, :, 0], DATES) is None
+
+
+def test_the_fast_scan_is_the_default_and_agrees_with_the_full_one(result):
+    assert TERM.scan == "fast" and (TERM.coarse, TERM.refine_nodes) == brightness.SCANS["fast"]
+    full = BrightnessTerm(toy_templates(), GRID, scan="full")
+    scores, trials = [], []
+    for term in (TERM, full):
+        counted, original = [], term._trials
+        term._trials = lambda data, cls, position, t0: counted.append(len(t0)) or original(data, cls, position, t0)
+        try:
+            scores.append(term.score(DAYS, BAND, FLUX, ERROR, seed=7))
+        finally:
+            del term._trials
+        trials.append(sum(counted))
+    fast, finer = scores
+    assert trials[0] < trials[1]
+    np.testing.assert_array_equal(fast.log_ratio, result.log_ratio)
+    np.testing.assert_array_equal(np.isfinite(fast.log_ratio), np.isfinite(finer.log_ratio))
+    best = finer.log_ratio >= np.max(finer.log_ratio) - 10
+    np.testing.assert_allclose(fast.log_ratio[best], finer.log_ratio[best], rtol=0, atol=0.5)
+    assert np.argmax(fast.log_ratio) == np.argmax(finer.log_ratio)
+
+
+def test_an_unknown_scan_is_refused():
+    with pytest.raises(ValueError, match="scan"):
+        BrightnessTerm(toy_templates(), GRID, scan="quick")
+
+
+def test_the_error_check_finds_errors_that_understate_the_scatter():
+    days, band, error = np.arange(0.0, 300.0, 5.0), np.zeros(60, int), np.ones(60)
+    understated = brightness.check_errors(days, band, np.random.default_rng(2).normal(0, 3.0, 60), error)
+    right = brightness.check_errors(days, band, np.random.default_rng(3).normal(0, 1.0, 60), error)
+    short = brightness.check_errors(days[:6], band[:6], np.random.default_rng(4).normal(0, 3.0, 6), error[:6])
+    assert understated.measured and 2.5 < understated.scale < 3.5 and understated.points == 56
+    assert right.measured and right.scale == 1.0
+    assert not short.measured and short.scale == 1.0  # too few points: not checked, not found fine
+    bright = brightness.check_errors(days, band, 1e4 * np.exp(-0.5 * ((days - 150) / 20) ** 2), error)
+    assert bright.points < 56  # the bright part's curvature is not taken for noise
+    empty = brightness.check_errors(days, band, np.full(60, np.nan), error)
+    assert empty.scale == 1.0 and empty.points == 0 and np.isnan(empty.scatter)
+
+
+def test_a_matrix_the_default_solver_cannot_take_goes_to_scipy(monkeypatch):
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("scipy")
+    rng = np.random.default_rng(0)
+    G = torch.as_tensor(rng.normal(size=(3, 5)), dtype=torch.float64)
+    S = torch.as_tensor(np.stack([np.cov(rng.normal(size=(5, 20))) for _ in range(2)]), dtype=torch.float64)
+    lam, U = brightness._eigen(G, S)
+    monkeypatch.setattr(torch.linalg, "eigh", lambda B: (_ for _ in ()).throw(torch.linalg.LinAlgError("failed")))
+    lam_fallback, U_fallback = brightness._eigen(G, S)
+    np.testing.assert_allclose(lam_fallback.numpy(), lam.numpy(), rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(np.abs(U_fallback.numpy()), np.abs(U.numpy()), atol=1e-10)  # up to each vector's sign

@@ -19,7 +19,7 @@ Two comparisons
 **Coadd comparison.** STRIDER combines the visits into one spectrum and compares it with what each class looks like
 at every redshift. This comparison was learned from simulated Roman spectra.
 
-**Brightness comparison.** STRIDER sums each visit's spectrum into four fixed bands between 7,500 and 18,000 Å, and
+**Brightness comparison.** STRIDER averages each visit's spectrum over four fixed bands between 7,500 and 18,000 Å, and
 compares how the four bands brighten and fade with each class, at every redshift and every peak date. The class
 light curves come from the training simulations. Each band's steady level is removed, so light that stays the same
 from visit to visit, such as steady light from the host galaxy, does not count. Spectra from a single date add
@@ -33,7 +33,8 @@ Putting them together
 ---------------------
 
 STRIDER adds the two comparisons with two fixed weights. It then applies how common each class is at each redshift
-among the transients Roman is expected to find, and any prior you gave. The result is the probability of every class at every redshift.
+among the transients Roman is expected to find, and any prior you gave. The result is the probability of every class
+at every redshift.
 
 What comes out
 --------------
@@ -52,4 +53,5 @@ What it does not do
 -------------------
 
 STRIDER does not estimate the phase or age of a transient, and it takes no peak date: the brightness comparison
-searches every peak date itself. It uses the prism spectra only, not Roman's imaging.
+searches the peak dates itself, first about 8 days apart and then more finely around each good fit. It uses the prism
+spectra only, not Roman's imaging.

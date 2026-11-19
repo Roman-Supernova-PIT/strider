@@ -23,7 +23,7 @@ In and out
 - **In:** each visit's date (MJD), wavelengths (Å), flux and its error, as a CSV or Parquet file, an astropy or
   pandas table, or Roman SMDC files. Optionally, a host redshift, a redshift range or the classes to allow.
 - **Out:** the probability of each of 15 classes, the redshift with its 68% range, how strong the match is and any
-  warnings, as a printed card, a Parquet, CSV or JSON file, and a figure.
+  warnings, as a printed report, a Parquet, CSV or JSON file, and a figure.
 
 Install
 -------
@@ -48,21 +48,40 @@ Example
 
 .. code-block:: text
 
-    STRIDER · transient                                         strider-15class-1.0
+    STRIDER: transient
     Class     Ia 100%
-    Redshift  0.869 (100% within 0.1) · 68% range 0.864–0.873
-    Match     high strength
-    Data      11 visits over 100 days · S/N 4.8
+    Redshift  0.869 (100% within 0.1), 68% range 0.864–0.873
+    Match     high
+    Data      11 visits over 100 days, S/N 4.8
 
-The example is a simulated SN Ia at redshift 0.868. For your own transient, make a CSV file with one row per pixel
-and the columns ``mjd``, ``wavelength``, ``flux`` and ``error``, then run:
+The example is a simulated SN Ia at redshift 0.868. Its figure:
+
+.. image:: docs/_static/example.png
+   :alt: The example's figure: the class, redshift, match and data in a box at the top; below, its spectra, the
+         best match's model spectrum, its brightness in four bands, every class at every redshift, and the class
+         and redshift probabilities.
+
+For your own transient, make a CSV file with one row per pixel and the columns ``mjd``, ``wavelength``, ``flux`` and
+``error``, then run:
 
 .. code-block:: console
 
     strider classify my_transient.csv
 
-`Documentation <https://roman-supernova-pit.github.io/strider/>`_ ·
-`How it works <https://roman-supernova-pit.github.io/strider/how_it_works.html>`_ ·
-`Tutorial <https://github.com/Roman-Supernova-PIT/strider/blob/main/docs/tutorial.ipynb>`_ ·
-`Issues <https://github.com/Roman-Supernova-PIT/strider/issues>`_ · Cite Dixon et al. (in prep.) · BSD 3-Clause
-licence · By the Roman Supernova Project Infrastructure Team
+Many transients
+---------------
+
+Put them in a parquet table with one row per visit, then run:
+
+.. code-block:: console
+
+    strider classify spectra.parquet -o results.parquet --workers 8
+
+It saves as it goes, so a run that stops carries on with ``--resume``, and ``--job K/N`` splits a run into jobs.
+``strider info results.parquet`` shows how a run was made.
+
+`Documentation <https://roman-supernova-pit.github.io/strider/>`_ |
+`How it works <https://roman-supernova-pit.github.io/strider/how_it_works.html>`_ |
+`Tutorial <https://github.com/Roman-Supernova-PIT/strider/blob/main/docs/tutorial.ipynb>`_ |
+`Issues <https://github.com/Roman-Supernova-PIT/strider/issues>`_ | Cite Dixon et al. (in prep.) | BSD 3-Clause
+licence | By the Roman Supernova Project Infrastructure Team

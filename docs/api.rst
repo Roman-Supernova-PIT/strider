@@ -14,3 +14,14 @@ API reference
 
 .. automodapi:: strider.registry
    :no-inheritance-diagram:
+
+.. automodapi:: strider.runs
+   :no-inheritance-diagram:
+
+.. automodapi:: strider.saved
+   :no-inheritance-diagram:
+
+.. automodapi:: strider.brightness
+   :skip: BrightnessCurve, BrightnessScore, BrightnessTerm
+   :no-main-docstr:
+   :no-inheritance-diagram:

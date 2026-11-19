@@ -3,6 +3,7 @@
 import contextlib
 import hashlib
 import itertools
+import logging
 import multiprocessing
 import numbers
 import os
@@ -10,22 +11,38 @@ import re
 import signal
 import sys
 import threading
+import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 
 from . import posterior, registry
-from .io import Classification, EvidenceMapsFile, RedshiftCurvesFile, ResultsFile, Transient, Visit
+from .io import (
+    WARNING_CODES,
+    Classification,
+    EvidenceMapsFile,
+    RedshiftCurvesFile,
+    ResultsFile,
+    Transient,
+    Visit,
+    _Outcome,
+    input_fingerprint,
+)
 from .package import read_package
 from .preprocess import Prepared, measured_error_scale, network_inputs, prepare
+from .runs import checked_job, in_job, run_record
 
 __all__ = ["Model", "load_model"]
 
 HOST_REDSHIFT_LIMIT = 5.0
+LOG = logging.getLogger("strider")  # a batch's progress: about once a minute, and each object at DEBUG
+PROGRESS_SECONDS = 60.0
+SAVE_SECONDS = 300.0  # a batch's results are written at least this often, as well as every `chunk` objects
+TICK_SECONDS = 30.0  # with workers, how long the batch waits for a result before it checks what is due
 
 
 class Model:
@@ -36,7 +53,7 @@ class Model:
     name : str
         The model's name and version, as ``<name>-<version>``.
     fingerprint : str
-        A code that identifies the model: its network, brightness term, priors and settings. ``files_sha256``
+        A code that identifies the model: its network, brightness comparison, priors and settings. ``files_sha256``
         identifies every file of its package.
     classes : list of str
         The classes it tells apart.
@@ -49,7 +66,7 @@ class Model:
         The model package it was loaded from.
     """
 
-    def __init__(self, package, network, device="cpu"):
+    def __init__(self, package, network, device="cpu", scan="fast"):
         from .brightness import BrightnessTerm
 
         self.package, self.network, self.device = package, network, device
@@ -63,7 +80,9 @@ class Model:
         self.prior = posterior.prior_change(package.priors, self.classes, self.redshift_grid, self.widths)
         # the fusion gives probability only to cells with training transients, so only they are scored
         tables = package.brightness
-        self.brightness = BrightnessTerm(tables, self.redshift_grid, scored=np.isfinite(self.prior["training"]))
+        self.brightness = BrightnessTerm(
+            tables, self.redshift_grid, scored=np.isfinite(self.prior["training"]), scan=scan
+        )
         self.profile = tables["profile_wavelength"], tables["profile_sigma"]
         fusion = package.config["fusion"]
         self.fusion = fusion["spectrum_weight"], fusion["brightness_weight"]
@@ -73,8 +92,13 @@ class Model:
             None if self.calibration is None else self.calibration["source_probability"]["weak_source_below"]
         )
 
+    @property
+    def scan(self) -> str:
+        """How the brightness comparison searches peak dates, ``fast`` or ``full``."""
+        return self.brightness.scan
+
     @classmethod
-    def from_package(cls, path: str | os.PathLike, device: str = "cpu") -> "Model":
+    def from_package(cls, path: str | os.PathLike, device: str = "cpu", scan: str = "fast") -> "Model":
         """Load a model from a model package.
 
         Parameters
@@ -83,6 +107,9 @@ class Model:
             The package file (``.tar.gz``) or its unpacked directory.
         device : str
             The PyTorch device to run on, ``cpu`` or ``cuda``. MPS does not work, as it has no float64.
+        scan : str
+            How the brightness comparison searches peak dates: ``fast`` (the default) or ``full``, which starts 4
+            times finer and is slower.
 
         Returns
         -------
@@ -90,7 +117,11 @@ class Model:
         """
         if str(device).startswith("mps"):
             raise ValueError("MPS has no float64, which STRIDER needs; use device='cpu' or 'cuda'")
+        from .brightness import SCANS
         from .network import Network
+
+        if scan not in SCANS:
+            raise ValueError(f"scan must be one of {sorted(SCANS)}, not {scan!r}")
 
         package = read_package(path)
         try:
@@ -98,7 +129,7 @@ class Model:
             network.load_weights(package.weights)
             network.to(device).eval()
             network.cache_references()
-            return cls(package, network, device)
+            return cls(package, network, device, scan)
         except ValueError as error:
             raise ValueError(f"model package {package.path}: {error}") from None
 
@@ -118,6 +149,8 @@ class Model:
         redshift_prior: np.ndarray | None = None,
         host_redshift_outlier: float | None = None,
         error_scale: float | str = 1.0,
+        light_curve_errors: str = "check",
+        max_spectra: int | None = None,
     ) -> Classification:
         """Classify one transient and estimate its redshift.
 
@@ -154,12 +187,22 @@ class Model:
             A factor, from 0.001 to 1000, to multiply every visit's errors by, for errors that understate the noise.
             ``"auto"`` measures it from the visits kept, never below 1 (`strider.preprocess.measured_error_scale`).
             The default, 1, uses the errors as given.
+        light_curve_errors : str
+            ``"check"`` (the default) checks whether the light curve's errors are too small for its scatter
+            (`strider.brightness.check_errors`) and records what it finds, changing nothing. ``"correct"`` also
+            scales the light curve's errors up by what the check finds. It cannot be ``"correct"`` with an
+            ``error_scale`` other than 1, as both would correct the same noise.
+        max_spectra : int, optional
+            Use only the first this many usable spectra in time order, which bounds the time a transient with many
+            takes. The later spectra are listed in ``dropped_visits``. By default all are used.
 
         Returns
         -------
         strider.Classification
         """
         error_scale = _checked_error_scale(error_scale)
+        scale_brightness = _scaling_brightness(light_curve_errors, error_scale)
+        max_spectra = _checked_max_spectra(max_spectra)
         if flux is None:
             transient = data if isinstance(data, Transient) else Transient.from_table(data)
             data, flux, error, mjd, mask = _visit_columns(transient)
@@ -167,8 +210,8 @@ class Model:
                 host_redshift, host_redshift_error = transient.host_redshift, transient.host_redshift_error
         host = _host(host_redshift, host_redshift_error, self.redshift_grid)
         priors = self._priors(classes, class_prior, redshift_range, redshift_prior, host_redshift_outlier)
-        prepared, scale = self._scaled(data, flux, error, mjd, mask, error_scale)
-        return self._result(self._evaluate(prepared), prepared, host, priors, scale)
+        prepared, scale, kept, reasons = self._limited(data, flux, error, mjd, mask, error_scale, max_spectra)
+        return self._result(self._evaluate(prepared, scale_brightness), prepared, host, priors, scale, kept, reasons)
 
     def classify_first(
         self,
@@ -187,6 +230,7 @@ class Model:
         redshift_prior: np.ndarray | None = None,
         host_redshift_outlier: float | None = None,
         error_scale: float | str = 1.0,
+        light_curve_errors: str = "check",
     ) -> dict[int, Classification]:
         """Classify the first spectra in time order, for each number of spectra in ``steps``: how the result builds up
         as the spectra arrive. Only spectra STRIDER can use count, so a spectrum it leaves out is skipped. Each number
@@ -203,6 +247,8 @@ class Model:
             Your own priors, as `classify` takes them.
         error_scale : float or "auto"
             As `classify` takes it; ``"auto"`` is measured from the spectra each step uses.
+        light_curve_errors : str
+            As `classify` takes it.
 
         Returns
         -------
@@ -219,6 +265,7 @@ class Model:
             "redshift_prior": redshift_prior,
             "host_redshift_outlier": host_redshift_outlier,
             "error_scale": _checked_error_scale(error_scale),
+            "light_curve_errors": light_curve_errors,
         }
         transient = _transient(data, flux, error, mjd, mask)
         if host_redshift is None and host_redshift_error is None:
@@ -257,6 +304,7 @@ class Model:
         redshift_prior: np.ndarray | None = None,
         host_redshift_outlier: float | None = None,
         error_scale: float | str = 1.0,
+        light_curve_errors: str = "check",
     ):
         """Draw how the result builds up as the spectra arrive (`classify_first`). Each column shows the first
         spectra in time order: their combined spectrum and its S/N, the probability of each class at each redshift,
@@ -282,6 +330,8 @@ class Model:
             Your own priors, as `classify` takes them.
         error_scale : float or "auto"
             As `classify_first` takes it.
+        light_curve_errors : str
+            As `classify` takes it.
 
         Returns
         -------
@@ -308,6 +358,7 @@ class Model:
             "redshift_prior": redshift_prior,
             "host_redshift_outlier": host_redshift_outlier,
             "error_scale": _checked_error_scale(error_scale),
+            "light_curve_errors": light_curve_errors,
         }
         results = self.classify_first(data, flux, error, mjd, mask, steps=steps, **priors)
         if rows == "all":
@@ -343,15 +394,36 @@ class Model:
             return prepared, scale
         return self._prepare(data, flux, error, mjd, mask, scale), scale
 
-    def _result(self, output, prepared, host, priors, error_scale):
+    def _limited(self, data, flux, error, mjd, mask, error_scale, max_spectra):
+        """The prepared visits (`_scaled`) and the factor their errors were multiplied by; with ``max_spectra``, of
+        only the first that many usable visits in time order, with their positions in the input (None if every usable
+        visit is kept) and the reasons the other visits are left out."""
+        prepared, scale = self._scaled(data, flux, error, mjd, mask, error_scale)
+        if max_spectra is None or len(prepared.visits) <= max_spectra:
+            return prepared, scale, None, {}
+        kept, later = prepared.visits[:max_spectra].tolist(), prepared.visits[max_spectra:].tolist()
+
+        def chosen(values):
+            return None if values is None else [values[i] for i in kept]
+
+        shared = len(data) and np.ndim(next(iter(data))) == 0  # one wavelength array for every visit
+        subset = (data if shared else chosen(data), chosen(flux), chosen(error), chosen(list(mjd)), chosen(mask))
+        reasons = prepared.dropped | {i: f"after the first {max_spectra} spectra (max_spectra)" for i in later}
+        return *self._scaled(*subset, error_scale), kept, reasons
+
+    def _result(self, output, prepared, host, priors, error_scale, kept=None, reasons=None):
         result = self._summarise(output, prepared, host, priors)
         result.error_scale = float(error_scale)
+        if kept is not None:  # a subset of the visits (max_spectra): positions in the input
+            result.visits_used = [kept[i] for i in result.visits_used]
+            moved = {kept[i]: reason for i, reason in result.dropped_visits.items()}
+            result.dropped_visits = dict(sorted((reasons | moved).items()))
         result._source = (self, prepared, output)  # what result.plot() draws
         return result
 
     def classify_many(
         self,
-        objects: Mapping[str, Transient],
+        objects: Mapping[str, Transient] | Iterable[tuple[str, "Transient | str"]],
         output: str | os.PathLike | None = None,
         chunk: int = 100,
         plots: str | os.PathLike | None = None,
@@ -367,18 +439,27 @@ class Model:
         host_redshift_outlier: float | None = None,
         error_scale: float | str = 1.0,
         keep: bool = True,
+        job: tuple[int, int] | str | None = None,
+        resume: bool = False,
+        source: Mapping | None = None,
+        light_curve_errors: str = "check",
+        max_spectra: int | None = None,
     ) -> dict[str, Classification | str]:
         """Classify many transients, and optionally write the results to a file.
 
         Parameters
         ----------
-        objects : mapping of str to strider.Transient
-            The transients by object id, as `strider.io.read_spectra` returns them.
+        objects : mapping of str to strider.Transient, or iterable of (str, strider.Transient or str)
+            The transients by object id, as `strider.io.read_spectra` returns them, or as pairs of object id and
+            transient, as `strider.io.iter_spectra` gives them one at a time; a reason in place of a transient is
+            that object's failure. Each id must be distinct.
         output : str or path-like, optional
             The file to write the results to, ending in ``.parquet``, ``.csv`` or ``.json``
             (`strider.io.write_results`).
         chunk : int
-            How many objects to classify between writes to ``output``.
+            How many objects to classify between writes to ``output``. With ``workers``, the results are also
+            written at least every 5 minutes or so, so that a run of slow objects keeps what it has done; with one
+            worker, as each object finishes once 5 minutes have passed since the last write.
         plots : str or path-like, optional
             A folder to save each object's figure in, as ``<object id>.png`` (`strider.Classification.plot`).
         evidence_maps, redshift_curves : str or path-like, optional
@@ -386,8 +467,9 @@ class Model:
             (`strider.io.RedshiftCurvesFile`, qp) to, written as the batch goes like ``output``.
         workers : int
             How many transients to classify at once, each in its own process on one CPU core. With several cores
-            this is the fastest way through a batch on a CPU. In a script, call it under
-            ``if __name__ == "__main__":``.
+            this is the fastest way through a batch on a CPU. Each result is written as it finishes, so the files
+            can hold them in another order than the input; the dict returned keeps the input's order. In a script,
+            call it under ``if __name__ == "__main__":``.
         batch : int, optional
             How many transients the network scores together. On a GPU this is the fast way through a batch; the
             default there is 8, and each transient in a batch needs about 1 GB of GPU memory. A batch that runs out
@@ -398,18 +480,33 @@ class Model:
             Your own priors, as `classify` takes them, for every object.
         error_scale : float or "auto"
             As `classify` takes it, for every object; ``"auto"`` is measured for each object from its own spectra.
+        light_curve_errors : str
+            As `classify` takes it, for every object.
+        max_spectra : int, optional
+            As `classify` takes it, for every object: a limit on the time a transient with many spectra takes.
         keep : bool
             Keep every result in the returned dict. For a large batch written to files, ``keep=False`` keeps only
             the failures, so memory does not grow with the batch.
+        job : tuple of int or str, optional
+            Classify only job k of n, given as (k, n) or ``"k/n"``: the objects whose id falls to job k
+            (`strider.runs.in_job`), so that n jobs can share one input; `strider.runs.merge` joins their results.
+        resume : bool
+            Carry on a ``.parquet`` run that stopped, from the parts it saved: the objects saved are skipped. It needs
+            the same input, model, settings and job; an object whose input changed stops it. With no run to carry
+            on, it starts one, so a job that may be requeued can always ask to resume.
+        source : mapping, optional
+            Where the objects came from, for the run's record (`strider.runs.run_record`): the input file's ``path``
+            and ``sha256``, and the ``columns``, ``wavelength_unit`` and ``flux_density`` it was read with.
 
         Returns
         -------
         dict
-            Each object's result, by object id. If an object cannot be classified, its entry is the reason, as a
-            string, and the batch carries on.
+            Each object's result, by object id, in the input's order. If an object cannot be classified, its entry is
+            the reason, as a string, and the batch carries on.
 
-        A batch that is stopped (Ctrl-C, or a scheduler's SIGTERM) first writes the transients done. One that is
-        killed outright keeps, for a ``.parquet`` output, the transients written so far in ``<output>.parts``.
+        A batch that is stopped (Ctrl-C, or a scheduler's SIGTERM) first writes the transients done. A ``.parquet``
+        output is a run (`strider.runs`): its results are saved in ``<output>.parts`` as it goes and joined into
+        ``<output>`` only when every object is done, so a run that stops, or is killed, keeps them to resume.
         """
         priors = {
             "classes": classes,
@@ -420,6 +517,8 @@ class Model:
         }
         self._priors(**priors)  # a mistake in them stops the batch before it starts
         error_scale = _checked_error_scale(error_scale)
+        _scaling_brightness(light_curve_errors, error_scale)
+        max_spectra = _checked_max_spectra(max_spectra)
         if not (isinstance(workers, numbers.Integral) and workers >= 1):
             raise ValueError(f"workers must be a whole number of at least 1, not {workers!r}")
         if workers > 1 and not str(self.device).startswith("cpu"):
@@ -428,6 +527,7 @@ class Model:
             batch = 1 if str(self.device).startswith("cpu") else 8
         if not (isinstance(batch, numbers.Integral) and batch >= 1):
             raise ValueError(f"batch must be a whole number of at least 1, not {batch!r}")
+        workers, batch = int(workers), int(batch)  # a NumPy integer too, as plain numbers for the run's record
         if workers > 1 and batch > 1:
             raise ValueError("use workers on CPU cores or batch on a GPU, not both")
         if plots is not None:
@@ -438,94 +538,153 @@ class Model:
         chosen = [Path(p).resolve() for p in (output, evidence_maps, redshift_curves) if p is not None]
         if len(set(chosen)) < len(chosen):
             raise ValueError("the results, evidence maps and redshift curves need different files")
-        results, writers = {}, []
+        if resume and (evidence_maps is not None or redshift_curves is not None):
+            raise ValueError("resume carries on the results only; leave out the evidence maps and redshift curves")
+        job = None if job is None else checked_job(job)
+        options = {
+            "error_scale": error_scale,
+            "light_curve_errors": light_curve_errors,
+            "max_spectra": max_spectra,
+        }
+        record = run_record(self, priors, source=source, job=job, workers=workers, **options)
+        results, writers, order = {}, [], []
         with contextlib.ExitStack() as files, _stop_on_sigterm():  # every file is finished, however the batch ends
-            for kind, path in (
-                (ResultsFile, output),
-                (EvidenceMapsFile, evidence_maps),
-                (RedshiftCurvesFile, redshift_curves),
-            ):
+            if output is not None:
+                writers.append(ResultsFile(output, self, record, resume))
+                # joined only if the batch ends without an error or a stop, with every object of the input done
+                files.push(lambda stopped, *_, writer=writers[0]: writer.close(complete=stopped is None, seen=order))
+            for kind, path in ((EvidenceMapsFile, evidence_maps), (RedshiftCurvesFile, redshift_curves)):
                 if path is not None:
                     writers.append(files.enter_context(contextlib.closing(kind(path, self))))
             pending = [{} for _ in writers]  # each file's transients not yet written to it
             try:
-                for key, result in self._each(objects, priors, error_scale, plots, workers, batch):
+                pairs = _distinct(objects, order)
+                if job is not None:
+                    pairs = ((key, transient) for key, transient in pairs if in_job(key, job))
+                if resume:
+                    pairs = _unsaved(pairs, writers[0].saved)
+                progress, written = _Progress(workers), time.monotonic()
+
+                def take(key, outcome):
+                    result = outcome.result
                     if keep or isinstance(result, str):
                         results[key] = result
-                    for waiting in pending:
-                        waiting[key] = result
-                    if pending and len(pending[0]) == chunk:
-                        _write(writers, pending)
+                    for writer, waiting in zip(writers, pending):
+                        waiting[key] = outcome if isinstance(writer, ResultsFile) else result
+
+                stream = self._each(pairs, priors, options, plots, workers, batch)
+                try:
+                    for key, outcome in stream:
+                        if outcome is not None:  # else a pause while workers run: a time to write what is due
+                            take(key, outcome)
+                            progress.add(key, outcome)
+                        progress.report()
+                        due = time.monotonic() - written >= SAVE_SECONDS
+                        if pending and pending[0] and (len(pending[0]) >= chunk or due):
+                            _write(writers, pending)
+                            written = time.monotonic()
+                except BaseException:  # a stop while handling a result: what workers had finished is kept too
+                    for key, outcome in _finished_before_stop(stream):
+                        take(key, outcome)
+                    raise
+                progress.finish()
             finally:  # a stopped batch (an error, Ctrl-C) first writes the transients done
                 _write(writers, pending)
-        return results
+        return {key: results[key] for key in order if key in results}
 
-    def _each(self, objects, priors, error_scale, plots, workers, batch=1):
-        """Each object's id and its result (`_for_batch`), in order: here, ``batch`` at a time, or from ``workers``
-        processes."""
+    def _each(self, pairs, priors, options, plots, workers, batch=1):
+        """Each object's id and its outcome (`_for_batch`): here in order, ``batch`` at a time, or from ``workers``
+        processes as each finishes. A reason in place of a transient is its outcome as it is. ``options`` are the
+        ``error_scale``, ``light_curve_errors`` and ``max_spectra`` `classify` takes."""
         if workers == 1 and batch == 1:
-            for key, transient in objects.items():
-                yield key, self._for_batch(key, transient, priors, error_scale, plots)
+            for key, transient in pairs:
+                yield key, self._for_batch(key, transient, priors, options, plots)
             return
         if workers == 1:
-            items = iter(objects.items())
+            items = iter(pairs)
             while group := list(itertools.islice(items, 4 * batch)):  # sorted by visits within each window
-                yield from self._together(group, priors, error_scale, plots, batch)
+                yield from self._together(group, priors, options, plots, batch)
             return
-        items = list(objects.items())
         pool = ProcessPoolExecutor(
-            min(workers, len(items)) or 1,
+            workers,
             mp_context=multiprocessing.get_context("spawn"),
             initializer=_start_worker,
-            initargs=(Path(self.package.path).resolve(), self.files_sha256, plots is not None),
+            initargs=(Path(self.package.path).resolve(), self.files_sha256, plots is not None, self.scan),
         )
+        running = {}  # jobs by future: twice as many as workers, so none waits and the input is read as needed
         try:  # a dead worker stops the batch with an error rather than leaving it waiting
-            jobs = ((key, transient, priors, error_scale, plots) for key, transient in items)
-            yield from zip((key for key, _ in items), pool.map(_worker_result, jobs))
-        except BaseException:  # a stop: end the workers now, so the transients done are written at once
-            for process in list((getattr(pool, "_processes", None) or {}).values()):
-                process.terminate()
-            pool.shutdown(wait=False, cancel_futures=True)
+            for key, transient in pairs:
+                if isinstance(transient, str):
+                    yield key, _Outcome(transient)
+                    continue
+                running[pool.submit(_worker_result, (key, transient, priors, options, plots))] = key
+                while len(running) >= 2 * workers:
+                    yield from _finished_jobs(running, TICK_SECONDS)
+            while running:
+                yield from _finished_jobs(running, TICK_SECONDS)
+        except GeneratorExit:  # the batch takes no more results: end the workers
+            _end(pool)
+            raise
+        except BaseException:  # a stop here: end the workers, hand over the results already finished, then stop
+            _end(pool)
+            for future in [future for future in running if future.done() and not future.cancelled()]:
+                if future.exception() is None:
+                    yield running.pop(future), future.result()
             raise
         pool.shutdown(wait=True)
 
-    def _together(self, group, priors, error_scale, plots, batch):
-        """Each object's id and result (`_finished`), in order, for objects the network scores ``batch`` at a time,
-        those with similar numbers of visits together, as each batch is padded to its most visits. An object that
-        cannot be prepared, scored or summarised gets its reason, and the others carry on."""
-        checked, ready, results = self._priors(**priors), [], {}
+    def _together(self, group, priors, options, plots, batch):
+        """Each object's id and outcome, in order, for objects the network scores ``batch`` at a time, those with
+        similar numbers of visits together, as each batch is padded to its most visits. An object that cannot be
+        prepared, scored or summarised gets its reason, and the others carry on. What each object took is not
+        measured, as they are scored together."""
+        checked, ready, results, inputs = self._priors(**priors), [], {}, {}
+        scale_brightness = _scaling_brightness(options["light_curve_errors"], options["error_scale"])
         for key, transient in group:
+            if isinstance(transient, str):
+                results[key] = transient
+                continue
             try:
                 transient = transient if isinstance(transient, Transient) else Transient.from_table(transient)
+                inputs[key] = transient
                 host = _host(transient.host_redshift, transient.host_redshift_error, self.redshift_grid)
-                ready.append((key, *self._scaled(*_visit_columns(transient), error_scale), host))
+                limited = self._limited(*_visit_columns(transient), options["error_scale"], options["max_spectra"])
+                ready.append((key, *limited, host))
             except Exception as error:
                 results[key] = _reason(error)
         ready.sort(key=lambda entry: len(entry[1].days))
         try:
-            outputs = self._scored([prepared for _, prepared, _, _ in ready], batch)
+            outputs = self._scored([entry[1] for entry in ready], batch, scale_brightness)
         except Exception:
             outputs = None
         if outputs is None:  # outside the handler, so the failed attempt's memory is freed first
-            outputs = self._scored_each([prepared for _, prepared, _, _ in ready])
-        for (key, prepared, scale, host), output in zip(ready, outputs):
+            outputs = self._scored_each([entry[1] for entry in ready], scale_brightness)
+        for (key, prepared, scale, kept, reasons, host), output in zip(ready, outputs):
             if isinstance(output, str):
                 results[key] = output
                 continue
             try:
-                results[key] = self._result(output, prepared, host, checked, scale)
+                results[key] = self._result(output, prepared, host, checked, scale, kept, reasons)
             except Exception as error:
                 results[key] = _reason(error)
         for key, _ in group:
-            yield key, self._finished(key, results[key], plots)
+            result = self._finished(key, results[key], plots)
+            yield key, _Outcome(result, *_input_facts(inputs.get(key), result), peak_memory_mb=_peak_memory_mb())
 
-    def _for_batch(self, key, transient, priors, error_scale, plots):
-        """One object's result in a batch (`_finished`), or why it could not be classified."""
+    def _for_batch(self, key, transient, priors, options, plots):
+        """One object's outcome in a batch: its result (`_finished`), or why it could not be classified, with what
+        preparing, scoring and summarising it took. A reason in place of a transient is its outcome as it is."""
+        if isinstance(transient, str):
+            return _Outcome(transient)
+        started, cpu = time.perf_counter(), time.process_time()
         try:
-            result = self.classify(transient, **priors, error_scale=error_scale)
+            transient = transient if isinstance(transient, Transient) else Transient.from_table(transient)
+            result = self.classify(transient, **priors, **options)
         except Exception as error:
-            result = _reason(error)
-        return self._finished(key, result, plots)
+            transient, result = transient if isinstance(transient, Transient) else None, _reason(error)
+        elapsed, cpu = time.perf_counter() - started, time.process_time() - cpu
+        result = self._finished(key, result, plots)
+        return _Outcome(result, *_input_facts(transient, result), elapsed, cpu, _peak_memory_mb())
 
     def _finished(self, key, result, plots):
         """A result in a batch, its figure saved first if ``plots`` is a folder, without the visits it holds."""
@@ -592,7 +751,7 @@ class Model:
             found["host_outlier"] = float(host_redshift_outlier)
         return found
 
-    def _scored(self, prepared, batch):
+    def _scored(self, prepared, batch, scale_brightness=False):
         """`_evaluate_many` ``batch`` objects at a time. A batch that runs out of GPU memory is halved and tried again,
         down to one object, and the smaller size kept for the rest."""
         import torch
@@ -602,7 +761,7 @@ class Model:
         while len(outputs) < len(prepared):
             part = prepared[len(outputs) : len(outputs) + batch]
             try:
-                outputs += self._evaluate_many(part)
+                outputs += self._evaluate_many(part, scale_brightness)
                 continue
             except out_of_memory:
                 if len(part) == 1:
@@ -613,22 +772,22 @@ class Model:
             warnings.warn(f"out of GPU memory scoring {len(part)} transients together; trying {batch}")
         return outputs
 
-    def _scored_each(self, prepared):
+    def _scored_each(self, prepared, scale_brightness=False):
         """`_scored` one object at a time, an object that fails getting the reason, as a string, in its place."""
         outputs = []
         for one in prepared:
             try:
-                outputs += self._scored([one], 1)
+                outputs += self._scored([one], 1, scale_brightness)
             except Exception as error:
                 outputs.append(_reason(error))
         return outputs
 
-    def _evaluate(self, prepared: Prepared) -> dict[str, np.ndarray]:
+    def _evaluate(self, prepared: Prepared, scale_brightness: bool = False) -> dict[str, np.ndarray]:
         """The network's outputs for prepared visits (`strider.network.Network.forward`), as numpy arrays, and the
         brightness term, ``brightness``, with its best peak dates, ``peak_date``."""
-        return self._evaluate_many([prepared])[0]
+        return self._evaluate_many([prepared], scale_brightness)[0]
 
-    def _evaluate_many(self, prepared: list[Prepared]) -> list[dict[str, np.ndarray]]:
+    def _evaluate_many(self, prepared: list[Prepared], scale_brightness: bool = False) -> list[dict[str, np.ndarray]]:
         """`_evaluate` for several objects: the network scores them together (`strider.network.Network.forward_many`),
         and the brightness term each on its own."""
         import torch
@@ -637,23 +796,50 @@ class Model:
             output = self.network.forward_many([network_inputs(p, self.device) for p in prepared])
         output = {key: value.cpu().numpy() for key, value in output.items()}
         return [
-            {key: value[n] for key, value in output.items()} | self._brightness(one) for n, one in enumerate(prepared)
+            {key: value[n] for key, value in output.items()} | self._brightness(one, scale_brightness)
+            for n, one in enumerate(prepared)
         ]
 
-    def _brightness(self, prepared):
+    def _brightness(self, prepared, scale_brightness=False):
         """The brightness term (classes, z) of one transient from each visit's band fluxes, and its best peak dates
-        (classes, template redshifts); 0 on the cells it scores, no dates, and ``brightness_failed``, if it cannot be
-        computed, which leaves the spectrum alone."""
+        (classes, template redshifts); 0 on the cells it scores, no dates, and ``brightness_failed`` with the reason,
+        if it cannot be computed, which leaves the spectrum alone. With ``scale_brightness``, the band errors are
+        first multiplied by the scale `strider.brightness.check_errors` measures; the check is kept either way."""
         import torch
 
+        from .brightness import ErrorCheck, check_errors
+
+        days, band, flux, error = prepared.band_rows()
         try:
-            score = self.brightness.score(*prepared.band_rows(), prepared.seed)
-            return {"brightness": score.log_ratio, "peak_date": score.peak_date[..., 0], "brightness_failed": False}
-        except torch.linalg.LinAlgError as failure:
+            check, trouble = check_errors(days, band, flux, error), None
+        except (
+            np.linalg.LinAlgError,
+            ValueError,
+        ) as failure:  # the check fails: the term goes on with the errors as given
+            check, trouble = ErrorCheck(1.0, np.nan, np.nan, 0), _reason(failure)
+        errors = {
+            "light_curve_check": check,
+            "light_curve_error_scale": check.scale if scale_brightness else 1.0,
+            "light_curve_check_failure": trouble,
+        }
+        try:
+            score = self.brightness.score(days, band, flux, error * errors["light_curve_error_scale"], prepared.seed)
+        except (torch.linalg.LinAlgError, np.linalg.LinAlgError) as failure:
             warnings.warn(f"the brightness term could not be computed ({failure}); the result uses the spectrum alone")
             dates = np.full((len(self.classes), len(self.brightness.redshifts)), np.nan)
             zero = np.where(self.brightness.scored, 0.0, -np.inf)
-            return {"brightness": zero, "peak_date": dates, "brightness_failed": True}
+            return errors | {
+                "brightness": zero,
+                "peak_date": dates,
+                "brightness_failed": True,
+                "brightness_failure": _reason(failure),
+            }
+        return errors | {
+            "brightness": score.log_ratio,
+            "peak_date": score.peak_date[..., 0],
+            "brightness_failed": False,
+            "brightness_failure": None,
+        }
 
     def _summarise(self, output, prepared, host=None, priors=None) -> Classification:
         """The result for one object from its scores (`_evaluate`), with an optional host redshift and its error, and
@@ -674,9 +860,12 @@ class Model:
             **(priors or {}),
         )
         probabilities = dict(zip(self.classes, found["class_probabilities"].tolist()))
+        flags = found["flags"] | {"brightness_failed": bool(output["brightness_failed"])}
+        codes = matched["warning_codes"] + [code for code in WARNING_CODES if flags.get(code)]
         return Classification(
             model=self.name,
             fingerprint=self.fingerprint,
+            brightness_scan=self.scan,
             class_probabilities=probabilities,
             equal_prior_probabilities=dict(zip(self.classes, found["equal_prior_probabilities"].tolist())),
             p_ia=probabilities["Ia"],
@@ -694,7 +883,7 @@ class Model:
             source_probability=found["source_probability"],
             untrained_share=found["untrained_share"],
             trained_classes=[name for name, kept in zip(self.classes, found["trained_here"]) if kept],
-            flags=found["flags"] | {"brightness_failed": bool(output["brightness_failed"])},
+            flags=flags,
             best_match=(self.classes[matched["best_class"]], matched["best_redshift"]),
             next_best_class=self.classes[matched["next_best_class"]],
             match_gap=matched["match_gap"],
@@ -705,6 +894,11 @@ class Model:
             signal_to_noise=prepared.signal_to_noise,
             dropped_visits=prepared.dropped,
             redshift_range=found["redshift_range"],
+            warning_codes=codes,
+            light_curve_check=_error_report(
+                output["light_curve_check"], output["light_curve_error_scale"], output["light_curve_check_failure"]
+            ),
+            brightness_failure=output["brightness_failure"],
         )
 
 
@@ -731,12 +925,33 @@ def _stop_on_sigterm():
 
 
 def _write(writers, pending):
-    """Write each file's waiting transients, emptying its list first, so a stop during a write never writes them
-    twice."""
-    for n, writer in enumerate(writers):
-        waiting, pending[n] = pending[n], {}
-        if waiting:
-            writer.write(waiting)
+    """Write each file's waiting transients, emptying its list first, so that none is written twice. A stop (Ctrl-C,
+    or a scheduler's SIGTERM) that comes while they are written is held until they are, so that none is lost."""
+    with _stops_held():
+        for n, writer in enumerate(writers):
+            waiting, pending[n] = pending[n], {}
+            if waiting:
+                writer.write(waiting)
+
+
+@contextlib.contextmanager
+def _stops_held():
+    """Hold Ctrl-C and SIGTERM until the block ends, then let them through (main thread only, where Python allows a
+    handler)."""
+    if threading.current_thread() is not threading.main_thread():
+        yield
+        return
+    held, previous = [], {}
+    for stop in (signal.SIGINT, signal.SIGTERM):
+        previous[stop] = signal.getsignal(stop)
+        signal.signal(stop, lambda number, _: held.append(number))
+    try:
+        yield
+    finally:
+        for stop, handler in previous.items():
+            signal.signal(stop, signal.SIG_DFL if handler is None else handler)
+        for number in held[:1]:
+            signal.raise_signal(number)
 
 
 @contextlib.contextmanager
@@ -756,7 +971,7 @@ def _exact_float32(device):
         torch.backends.cuda.matmul.allow_tf32, torch.backends.cudnn.allow_tf32 = saved
 
 
-def _start_worker(path, files_sha256, plots):
+def _start_worker(path, files_sha256, plots, scan):
     """Load the model in a worker process of `Model.classify_many`, to run on one core, and check it is the
     caller's."""
     global _worker_model
@@ -767,13 +982,198 @@ def _start_worker(path, files_sha256, plots):
         import matplotlib
 
         matplotlib.use("Agg")
-    _worker_model = Model.from_package(path)
+    _worker_model = Model.from_package(path, scan=scan)
     if _worker_model.files_sha256 != files_sha256:
         raise RuntimeError(f"the model package at {path} changed after it was loaded")
 
 
+class _Progress:
+    """A batch's progress in the ``strider`` log: each object at DEBUG, and how far it has got about every
+    `PROGRESS_SECONDS`, and when it ends, at INFO."""
+
+    def __init__(self, workers):
+        self.done = self.failed = 0
+        self.started = self.reported = time.monotonic()
+        self.last_line = None  # the counts the last progress line gave
+        LOG.info("classifying on %d worker%s", workers, "s" if workers > 1 else "")
+
+    def add(self, key, outcome):
+        self.done += 1
+        result = outcome.result
+        self.failed += isinstance(result, str)
+        if LOG.isEnabledFor(logging.DEBUG):
+            failed = isinstance(result, str)
+            status = "failed" if failed else "spectra only" if result.flags["brightness_failed"] else "ok"
+            took = "" if outcome.seconds is None else f" in {_duration(outcome.seconds)}"
+            memory = "" if outcome.peak_memory_mb is None else f", peak memory {outcome.peak_memory_mb:.0f} MB"
+            LOG.debug("%s: %s%s%s", key, status, took, memory, extra=self._counts())
+
+    def report(self):
+        """Say how far the batch has got, if it has not said so for `PROGRESS_SECONDS`."""
+        if time.monotonic() - self.reported >= PROGRESS_SECONDS:
+            self.reported, self.last_line = time.monotonic(), (self.done, self.failed)
+            took = _duration(self.reported - self.started)
+            LOG.info("%d done, %d failed, after %s", self.done, self.failed, took, extra=self._counts())
+
+    def finish(self):
+        """Say the batch has ended, with its counts and time unless the last progress line has just given them."""
+        if self.last_line == (self.done, self.failed) and time.monotonic() - self.reported < 5.0:
+            LOG.info("finished", extra=self._counts())
+        else:
+            took = _duration(time.monotonic() - self.started)
+            LOG.info("finished: %d done, %d failed, in %s", self.done, self.failed, took, extra=self._counts())
+
+    def _counts(self):
+        """The counts so far, on each record, for a display that follows them (`strider.terminal.LiveLine`)."""
+        return {"done": self.done, "failed": self.failed}
+
+
+def _duration(seconds):
+    """Seconds as text: 12 s, 3 min 12 s, or 2 h 05 min."""
+    seconds = round(seconds)
+    if seconds < 60:
+        return f"{seconds} s"
+    if seconds < 3600:
+        return f"{seconds // 60} min {seconds % 60:02d} s"
+    return f"{seconds // 3600} h {seconds % 3600 // 60:02d} min"
+
+
+def _checked_max_spectra(value):
+    if value is not None and not (isinstance(value, numbers.Integral) and value >= 1):
+        raise ValueError(f"max_spectra must be a whole number of at least 1, or None for all, not {value!r}")
+    return None if value is None else int(value)
+
+
+def _scaling_brightness(light_curve_errors, error_scale):
+    """Whether the light curve's errors are to be scaled by what their check finds: ``"correct"`` yes, ``"check"``
+    no. Refused with an ``error_scale`` other than 1, which would correct the same noise."""
+    if light_curve_errors not in ("check", "correct"):
+        raise ValueError(f'light_curve_errors must be "check" or "correct", not {light_curve_errors!r}')
+    if light_curve_errors == "correct" and error_scale != 1.0:
+        raise ValueError(
+            'give error_scale or light_curve_errors="correct", not both: they would correct the same noise twice'
+        )
+    return light_curve_errors == "correct"
+
+
+def _error_report(check, applied, failure=None):
+    """The light curve's error check (`strider.brightness.check_errors`) as a result records it, with the reason if the
+    check itself failed."""
+    if failure is not None:
+        status = "failed"
+    elif not check.measured:
+        status = "too_few_points"
+    elif check.scale == 1.0:
+        status = "fine"
+    else:
+        status = "corrected" if applied > 1.0 else "too_small"
+    return {
+        "status": status,
+        "scatter": check.scatter,
+        "scatter_squared_se": check.scatter_squared_se,
+        "points": check.points,
+        "scale": check.scale,
+        "scale_used": applied,
+        "failure": failure,
+    }
+
+
+def _distinct(objects, order):
+    """The objects as (id, transient) pairs, each id added to ``order`` as it comes; an id seen before stops the
+    batch."""
+    seen = set()
+    for key, transient in objects.items() if isinstance(objects, Mapping) else objects:
+        if str(key) in seen:
+            raise ValueError(f"two transients have the id {str(key)!r}; give each a distinct id")
+        seen.add(str(key))
+        order.append(key)
+        yield key, transient
+
+
+def _unsaved(pairs, saved):
+    """The (id, transient) pairs not saved by the run being resumed; one saved from another input stops it."""
+    for key, transient in pairs:
+        if str(key) not in saved:
+            yield key, transient
+            continue
+        if isinstance(transient, str):
+            given = None
+        else:
+            given = input_fingerprint(
+                transient if isinstance(transient, Transient) else Transient.from_table(transient)
+            )
+        if given != saved[str(key)]:
+            raise ValueError(
+                f"object {key} differs from the one the stopped run saved: the input changed; write to a new output"
+            )
+
+
+class _Stop(Exception):
+    """Thrown into a batch's stream when the batch stops outside it (`_finished_before_stop`)."""
+
+
+def _finished_before_stop(stream):
+    """The results a batch's workers had finished when the batch stopped while handling another: thrown a stop,
+    `Model._each` ends its workers and hands those results over before it ends. Nothing for a stream that has ended,
+    or that runs no workers."""
+    found = []
+    try:
+        item = stream.throw(_Stop())
+        while True:
+            if item[1] is not None:
+                found.append(item)
+            item = next(stream)
+    except (_Stop, StopIteration):
+        return found
+
+
+def _finished_jobs(running, timeout=None):
+    """The id and outcome of each job that has finished, taken out of ``running`` (futures by id); or, if none has
+    within ``timeout`` seconds, (None, None), so that the batch can write what is due. A job that failed (its worker
+    died) raises once the others that finished are handed over."""
+    done, _ = wait(running, timeout=timeout, return_when=FIRST_COMPLETED)
+    if not done:
+        yield None, None
+        return
+    failed = None
+    for future in done:
+        key = running.pop(future)
+        if future.exception() is None:
+            yield key, future.result()
+        elif failed is None:
+            failed = future.exception()
+    if failed is not None:
+        raise failed
+
+
+def _end(pool):
+    """Stop a pool's workers now, without waiting for the jobs they hold."""
+    for process in list((getattr(pool, "_processes", None) or {}).values()):
+        process.terminate()
+    pool.shutdown(wait=False, cancel_futures=True)
+
+
 def _worker_result(job):
     return _worker_model._for_batch(*job)
+
+
+def _input_facts(transient, result):
+    """The fingerprint of a transient's input, and the MJD of its last visit the result used (None where unknown)."""
+    if transient is None:
+        return None, None
+    used = [] if isinstance(result, str) else result.visits_used
+    return input_fingerprint(transient), max((transient.visits[i].mjd for i in used), default=None)
+
+
+def _peak_memory_mb():
+    """The most memory this process has used so far, in MB: the most it has held at once, not what one object
+    needed. None where it cannot be read, as on Windows."""
+    try:
+        import resource
+    except ImportError:
+        return None
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss  # bytes on macOS, KiB on Linux
+    return (peak if sys.platform == "darwin" else peak * 1024) / 1e6
 
 
 def _save_figure(result, folder, key):
@@ -781,11 +1181,15 @@ def _save_figure(result, folder, key):
     '-' and '_' replaced by '_'."""
     import matplotlib.pyplot as plt
 
+    plt.close(result.plot(Path(folder) / figure_name(key), name=str(key)))
+
+
+def figure_name(key):
+    """The file name of a transient's figure: ``<key>.png``, the key's characters other than letters, digits, '.',
+    '-' and '_' replaced by '_', and then a short code of the key, so 'a/b' and 'a_b' do not share a file."""
     key = str(key)
     safe = re.sub(r"[^\w.-]", "_", key)
-    if safe != key:  # so 'a/b' and 'a_b' do not share a file
-        safe += "-" + hashlib.sha256(key.encode()).hexdigest()[:8]
-    plt.close(result.plot(folder / f"{safe}.png", name=key))
+    return f"{safe}.png" if safe == key else f"{safe}-{hashlib.sha256(key.encode()).hexdigest()[:8]}.png"
 
 
 def _visit_columns(transient):
@@ -857,7 +1261,9 @@ def _host(redshift, error, grid):
     return float(redshift), float(error)
 
 
-def load_model(name: str | os.PathLike | None = None, device: str = "cpu", sha256: str | None = None) -> Model:
+def load_model(
+    name: str | os.PathLike | None = None, device: str = "cpu", sha256: str | None = None, scan: str = "fast"
+) -> Model:
     """Load a model. A released model is downloaded the first time you use it.
 
     Parameters
@@ -870,6 +1276,9 @@ def load_model(name: str | os.PathLike | None = None, device: str = "cpu", sha25
     sha256 : str, optional
         For a package file given by path, its expected sha256: the file is refused if it differs. A released model
         is always checked against its own.
+    scan : str
+        How the brightness comparison searches peak dates: ``fast`` (the default), or ``full``, which starts 4 times
+        finer, is slower, and is the scan STRIDER 0.1 used.
 
     Returns
     -------
@@ -890,5 +1299,5 @@ def load_model(name: str | os.PathLike | None = None, device: str = "cpu", sha25
             found = hashlib.sha256(Path(name).read_bytes()).hexdigest()
             if found != sha256.lower():
                 raise ValueError(f"{name} has sha256 {found}, not the {sha256} expected")
-        return Model.from_package(Path(name), device)
-    return Model.from_package(registry.fetch(name), device)
+        return Model.from_package(Path(name), device, scan)
+    return Model.from_package(registry.fetch(name), device, scan)
