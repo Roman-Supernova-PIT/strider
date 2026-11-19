@@ -1,0 +1,6 @@
+results_schema
+==============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: results_schema

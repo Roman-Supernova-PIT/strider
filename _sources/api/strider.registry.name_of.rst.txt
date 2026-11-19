@@ -1,0 +1,6 @@
+name_of
+=======
+
+.. currentmodule:: strider.registry
+
+.. autofunction:: name_of

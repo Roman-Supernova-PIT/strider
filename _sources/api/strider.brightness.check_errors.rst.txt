@@ -1,0 +1,6 @@
+check_errors
+============
+
+.. currentmodule:: strider.brightness
+
+.. autofunction:: check_errors

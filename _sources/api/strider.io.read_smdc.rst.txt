@@ -1,0 +1,6 @@
+read_smdc
+=========
+
+.. currentmodule:: strider.io
+
+.. autofunction:: read_smdc

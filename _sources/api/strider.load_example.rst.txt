@@ -1,0 +1,6 @@
+load_example
+============
+
+.. currentmodule:: strider
+
+.. autofunction:: load_example

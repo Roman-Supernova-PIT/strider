@@ -1,0 +1,6 @@
+load_model
+==========
+
+.. currentmodule:: strider
+
+.. autofunction:: load_model

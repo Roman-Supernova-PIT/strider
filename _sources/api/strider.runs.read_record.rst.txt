@@ -1,0 +1,6 @@
+read_record
+===========
+
+.. currentmodule:: strider.runs
+
+.. autofunction:: read_record

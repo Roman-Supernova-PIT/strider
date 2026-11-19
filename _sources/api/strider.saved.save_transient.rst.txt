@@ -1,0 +1,6 @@
+save_transient
+==============
+
+.. currentmodule:: strider.saved
+
+.. autofunction:: save_transient

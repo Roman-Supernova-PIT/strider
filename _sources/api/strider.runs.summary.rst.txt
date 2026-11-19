@@ -1,0 +1,6 @@
+summary
+=======
+
+.. currentmodule:: strider.runs
+
+.. autofunction:: summary

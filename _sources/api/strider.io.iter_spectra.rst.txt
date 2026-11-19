@@ -1,0 +1,6 @@
+iter_spectra
+============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: iter_spectra

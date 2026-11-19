@@ -1,0 +1,6 @@
+saved_folder
+============
+
+.. currentmodule:: strider.saved
+
+.. autofunction:: saved_folder

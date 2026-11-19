@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Changes &#8212; STRIDER 0.1.dev1+gca67adfc4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=17a4a026"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="API reference" href="api.html" />
+    <link rel="prev" title="Glossary" href="glossary.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="index.html">
+    <img class="logo" src="_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running_at_scale.html">Running many transients</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">When something goes wrong</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Changes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="glossary.html" title="previous chapter">Glossary</a></li>
+      <li>Next: <a href="api.html" title="next chapter">API reference</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="glossary.html" title="Previous document">Glossary</a>
+        </li>
+        <li>
+          <a href="api.html" title="Next document">API reference</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="changes">
+<h1>Changes<a class="headerlink" href="#changes" title="Link to this heading">¶</a></h1>
+<section id="id1">
+<h2>0.2.0 (2026-11-19)<a class="headerlink" href="#id1" title="Link to this heading">¶</a></h2>
+<p>For runs of many transients, on a cluster or your own computer:</p>
+<ul class="simple">
+<li><p>A run written to parquet saves as it goes and, if it stops, carries on with <code class="docutils literal notranslate"><span class="pre">--resume</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--job</span> <span class="pre">K/N</span></code> splits a run into jobs, and <code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">merge</span></code> joins their results.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">info</span></code> describes this install, or the run behind a results file: its model, settings, input, time and
+memory.</p></li>
+<li><p>Each results row says how its transient was run: <code class="docutils literal notranslate"><span class="pre">status</span></code>, <code class="docutils literal notranslate"><span class="pre">warning_codes</span></code>, the spectra used, and its time, CPU
+time and memory.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--max-spectra</span> <span class="pre">N</span></code> uses only the first N spectra of each transient, which bounds the time one with many takes.</p></li>
+<li><p>A table of spectra is read one transient at a time, so its size does not matter. It can keep its own column names
+(<code class="docutils literal notranslate"><span class="pre">--columns</span></code>), give wavelengths in nm or microns and flux per unit frequency, and have one row per visit or per
+pixel.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">--only</span></code> classifies chosen transients. <code class="docutils literal notranslate"><span class="pre">--save-transient</span></code> saves one with its settings and result, and <code class="docutils literal notranslate"><span class="pre">strider</span>
+<span class="pre">rerun</span></code> classifies it again to check it.</p></li>
+</ul>
+<p>Results:</p>
+<ul class="simple">
+<li><p>The brightness comparison searches peak dates about 2.5 times faster by default. The results are close to 0.1’s but
+not the same: a transient near a level of match strength can get the other level. <code class="docutils literal notranslate"><span class="pre">--full-scan</span></code> uses 0.1’s scan.</p></li>
+<li><p>Each result checks the light curve’s errors against its scatter (<code class="docutils literal notranslate"><span class="pre">light_curve_check</span></code>).
+<code class="docutils literal notranslate"><span class="pre">--light-curve-errors</span> <span class="pre">correct</span></code> scales them up.</p></li>
+</ul>
+<p>What you see:</p>
+<ul class="simple">
+<li><p>Figures need nothing extra: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">.</span></code> installs matplotlib and cmasher.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">print(result)</span></code> gives the result’s report, also <code class="docutils literal notranslate"><span class="pre">result.report()</span></code>; <code class="docutils literal notranslate"><span class="pre">result.card()</span></code> still works.</p></li>
+<li><p>In a terminal, <code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">classify</span></code> shows how far it has got on one line, with the time left, and each report in
+colour.</p></li>
+<li><p>A new figure: the result in a box at the top, the spectra over their spread, the best match’s model spectrum and
+light curves, and open circles for faint brightness points.</p></li>
+</ul>
+</section>
+<section id="id2">
+<h2>0.1.0 (2026-11-13)<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h2>
+<p>The first public release, with the model <code class="docutils literal notranslate"><span class="pre">strider-15class</span></code> 1.0.</p>
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="glossary.html" title="Previous document">Glossary</a>
+        </li>
+        <li>
+          <a href="api.html" title="Next document">API reference</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/changes.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Running many transients &#8212; STRIDER 0.1.dev1+gca67adfc4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="_static/graphviz.css?v=4ae1632d" />
+    <script src="_static/documentation_options.js?v=17a4a026"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Reading the results" href="results.html" />
+    <link rel="prev" title="Running STRIDER" href="usage.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="index.html">
+    <img class="logo" src="_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Running STRIDER</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Running many transients</a></li>
+<li class="toctree-l1"><a class="reference internal" href="results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">When something goes wrong</a></li>
+<li class="toctree-l1"><a class="reference internal" href="models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changes.html">Changes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="usage.html" title="previous chapter">Running STRIDER</a></li>
+      <li>Next: <a href="results.html" title="next chapter">Reading the results</a></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="usage.html" title="Previous document">Running STRIDER</a>
+        </li>
+        <li>
+          <a href="results.html" title="Next document">Reading the results</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <section id="running-many-transients">
+<h1>Running many transients<a class="headerlink" href="#running-many-transients" title="Link to this heading">¶</a></h1>
+<p>For thousands of transients, on a cluster or your own computer, write the results to a parquet file. A run like this
+can stop and carry on, be split into several jobs, and keeps a record of how it was made.</p>
+<section id="a-run">
+<h2>A run<a class="headerlink" href="#a-run" title="Link to this heading">¶</a></h2>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">strider classify spectra.parquet -o results.parquet --workers 32</span>
+</pre></div>
+</div>
+<p>STRIDER reads the table one transient at a time, so its size does not matter. The rows of each transient must be
+together. As it goes, STRIDER saves the results in the folder <code class="docutils literal notranslate"><span class="pre">results.parquet.parts</span></code>: every 100 transients
+(<code class="docutils literal notranslate"><span class="pre">--save-every</span></code>) and, with <code class="docutils literal notranslate"><span class="pre">--workers</span></code>, at least every 5 minutes or so. When every transient is done, the saves
+are joined into <code class="docutils literal notranslate"><span class="pre">results.parquet</span></code> and the folder is removed.</p>
+<p>If the run stops, for any reason, the folder keeps what was saved. Run the same command with <code class="docutils literal notranslate"><span class="pre">--resume</span></code> and it
+carries on: it skips the transients already saved, and classifies again the ones that were running when it stopped.
+<code class="docutils literal notranslate"><span class="pre">--resume</span></code> needs the same input file, model, settings, STRIDER version, job and <code class="docutils literal notranslate"><span class="pre">--only</span></code> list, and stops if any of
+them changed. For new or corrected spectra, write to a new file. With nothing saved yet, <code class="docutils literal notranslate"><span class="pre">--resume</span></code> simply starts the
+run, so a cluster job that may be restarted can use it from the start. A run that has finished is not run again:
+<code class="docutils literal notranslate"><span class="pre">--resume</span></code> then stops and says the file is complete.</p>
+<p>STRIDER never overwrites a parquet results file: give a new name, or remove the old file first. Only one run at a time
+can write to a file.</p>
+<p><code class="docutils literal notranslate"><span class="pre">pyarrow.parquet.read_table(&quot;results.parquet.parts&quot;)</span></code> reads what a stopped run saved.</p>
+</section>
+<section id="splitting-a-run-into-jobs">
+<h2>Splitting a run into jobs<a class="headerlink" href="#splitting-a-run-into-jobs" title="Link to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">--job</span> <span class="pre">K/N</span></code> makes a run job K of N, with K from 0 to N - 1, so N jobs can share one input. Each transient goes to
+one job by its <code class="docutils literal notranslate"><span class="pre">object_id</span></code>, the same way on any machine. Give each job its own results file, then join them:</p>
+<div class="highlight-console notranslate"><div class="highlight"><pre><span></span><span class="go">strider classify spectra.parquet -o job0.parquet --job 0/4 --resume</span>
+<span class="go">...</span>
+<span class="go">strider classify spectra.parquet -o job3.parquet --job 3/4 --resume</span>
+<span class="go">strider merge job0.parquet job1.parquet job2.parquet job3.parquet -o results.parquet</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">merge</span></code> needs every job, once each, from the same input file, model and settings. <code class="docutils literal notranslate"><span class="pre">--partial</span></code> joins only
+the jobs given. In Python: <code class="docutils literal notranslate"><span class="pre">model.classify_many(...,</span> <span class="pre">job=(k,</span> <span class="pre">n),</span> <span class="pre">resume=True)</span></code> and <code class="docutils literal notranslate"><span class="pre">strider.runs.merge</span></code>.</p>
+</section>
+<section id="the-record-of-a-run">
+<h2>The record of a run<a class="headerlink" href="#the-record-of-a-run" title="Link to this heading">¶</a></h2>
+<p>Each parquet results file keeps a record of its run: the STRIDER version, the model, every setting that changes the
+results, the input file and its checksum, the job, the versions and machine used, when it started and finished, and
+a summary of what it holds. <code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">info</span> <span class="pre">results.parquet</span></code> shows it; add <code class="docutils literal notranslate"><span class="pre">--json</span></code> for programs, or use
+<code class="docutils literal notranslate"><span class="pre">strider.runs.read_record</span></code> in Python. <code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">info</span> <span class="pre">results.parquet.parts</span></code> shows how far a run has got.</p>
+<p>Each row also says how its transient was run:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">status</span></code>: <code class="docutils literal notranslate"><span class="pre">ok</span></code>; <code class="docutils literal notranslate"><span class="pre">spectra_only</span></code> if the brightness comparison failed, so the spectra alone were used; or
+<code class="docutils literal notranslate"><span class="pre">failed</span></code>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">warning_codes</span></code>;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">input_fingerprint</span></code>: a code for the transient’s input, the same on any machine;</p></li>
+<li><p>the number of spectra used and the date of the last one;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">settings_fingerprint</span></code>: a code for the run’s model and settings;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">seconds</span></code> and <code class="docutils literal notranslate"><span class="pre">cpu_seconds</span></code>: how long the transient took;</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">peak_memory_mb</span></code>: the most memory the process had used by then, in MB.</p></li>
+</ul>
+</section>
+<section id="as-it-runs">
+<h2>As it runs<a class="headerlink" href="#as-it-runs" title="Link to this heading">¶</a></h2>
+<p>In a terminal, <code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">classify</span></code> shows how far it has got on one line that updates in place, and ends with how many
+it classified and how long it took. In a job’s log, it writes a line about once a minute instead, and one at the end.
+<code class="docutils literal notranslate"><span class="pre">--verbose</span></code> adds a line for each transient, with its time and memory. In Python, these go to the <code class="docutils literal notranslate"><span class="pre">strider</span></code> logger.
+Set <code class="docutils literal notranslate"><span class="pre">NO_COLOR</span></code> to turn off colour.</p>
+</section>
+<section id="time-and-memory">
+<h2>Time and memory<a class="headerlink" href="#time-and-memory" title="Link to this heading">¶</a></h2>
+<p>Each worker holds the model and one transient: 1 to 2 GB of memory, a little more the longer it runs. The time per
+transient depends mostly on its light curve. It ranges from seconds to more than half an hour on one core, and is a
+few minutes for a typical transient. <code class="docutils literal notranslate"><span class="pre">--max-spectra</span> <span class="pre">16</span></code> keeps every transient to a few minutes, at some cost for
+distant, faint transients (<a class="reference external" href="usage.html">Running STRIDER</a>). <code class="docutils literal notranslate"><span class="pre">strider</span> <span class="pre">info</span></code> sums up the time and memory a run used,
+to plan the next.
+On a Slurm cluster, <code class="docutils literal notranslate"><span class="pre">seff</span> <span class="pre">&lt;job</span> <span class="pre">id&gt;</span></code>, where it is installed, shows the memory and CPU time a finished job used.</p>
+</section>
+</section>
+
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+        <li>
+          &larr;
+          <a href="usage.html" title="Previous document">Running STRIDER</a>
+        </li>
+        <li>
+          <a href="results.html" title="Next document">Reading the results</a>
+          &rarr;
+        </li>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+      |
+      <a href="_sources/running_at_scale.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

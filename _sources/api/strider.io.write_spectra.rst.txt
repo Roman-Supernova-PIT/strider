@@ -1,0 +1,6 @@
+write_spectra
+=============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: write_spectra

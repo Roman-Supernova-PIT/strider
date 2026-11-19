@@ -1,0 +1,6 @@
+checked_job
+===========
+
+.. currentmodule:: strider.runs
+
+.. autofunction:: checked_job

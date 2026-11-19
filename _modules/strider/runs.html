@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>strider.runs &#8212; STRIDER 0.1.dev1+gca67adfc4 documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="../../_static/basic.css?v=5a6b8c39" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css?v=f3bc516d" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css?v=4ae1632d" />
+    <script src="../../_static/documentation_options.js?v=17a4a026"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  <div class="document">
+    
+      <div class="sphinxsidebar" role="navigation" aria-label="Main">
+        <div class="sphinxsidebarwrapper">
+<p class="logo">
+  <a href="../../index.html">
+    <img class="logo" src="../../_static/logo_black_filled_sm.png" alt="Logo" />
+    
+  </a>
+</p>
+
+
+
+<p class="blurb">Transient classification and redshift inference from Roman prism spectra</p>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../how_it_works.html">How STRIDER works</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Running STRIDER</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../running_at_scale.html">Running many transients</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../results.html">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html">When something goes wrong</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../models.html">Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changes.html">Changes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API reference</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+        </div>
+      </div>
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+              <div class="related top">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+    </ul>
+  </nav>
+              </div>
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for strider.runs</h1><div class="highlight"><pre>
+<span></span><span class="sd">"""Runs of many transients written to a parquet file: the run's record, saving a part at a time, resuming a run that</span>
+<span class="sd">stopped, and splitting a run into jobs and joining their results.</span>
+
+<span class="sd">A run writes its results to ``&lt;output&gt;.parts``, one parquet file per write. Each part is written to a temporary file,</span>
+<span class="sd">flushed to disk and renamed, so a part is either whole or absent. The folder is locked while a run uses it. The parts</span>
+<span class="sd">are joined into ``&lt;output&gt;`` only when every object is done; a run that stops keeps them, and resuming carries on</span>
+<span class="sd">from them. The run's record is kept in ``_record.json`` and in every parquet file's metadata. The</span>
+<span class="sd">folder's other files start with ``_``, so ``pyarrow.parquet.read_table`` reads the folder as the results saved so</span>
+<span class="sd">far.</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">errno</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">hashlib</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">platform</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">shutil</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">uuid</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">warnings</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">UTC</span><span class="p">,</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"run_record"</span><span class="p">,</span> <span class="s2">"in_job"</span><span class="p">,</span> <span class="s2">"checked_job"</span><span class="p">,</span> <span class="s2">"read_record"</span><span class="p">,</span> <span class="s2">"summary"</span><span class="p">,</span> <span class="s2">"merge"</span><span class="p">]</span>
+
+<span class="n">RUN_FORMAT</span> <span class="o">=</span> <span class="s2">"strider-run-1"</span>
+<span class="n">RECORD_KEY</span> <span class="o">=</span> <span class="sa">b</span><span class="s2">"strider_run"</span>
+<span class="c1"># the columns that say how a row was run rather than what was found, left out when duplicates are compared</span>
+<span class="n">RUN_COLUMNS</span> <span class="o">=</span> <span class="p">(</span><span class="s2">"settings_fingerprint"</span><span class="p">,</span> <span class="s2">"seconds"</span><span class="p">,</span> <span class="s2">"cpu_seconds"</span><span class="p">,</span> <span class="s2">"peak_memory_mb"</span><span class="p">)</span>
+<span class="n">SUMMARY_COLUMNS</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="s2">"status"</span><span class="p">,</span>
+    <span class="s2">"warning_codes"</span><span class="p">,</span>
+    <span class="s2">"light_curve_check"</span><span class="p">,</span>
+    <span class="s2">"seconds"</span><span class="p">,</span>
+    <span class="s2">"cpu_seconds"</span><span class="p">,</span>
+    <span class="s2">"peak_memory_mb"</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="run_record">
+<a class="viewcode-back" href="../../api/strider.runs.run_record.html#strider.runs.run_record">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">run_record</span><span class="p">(</span>
+    <span class="n">model</span><span class="p">,</span>
+    <span class="n">priors</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">job</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">workers</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+    <span class="n">error_scale</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">light_curve_errors</span><span class="o">=</span><span class="s2">"check"</span><span class="p">,</span>
+    <span class="n">max_spectra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The record of a run: the model, the settings that change results, the input, the job and each session's</span>
+<span class="sd">    environment.</span>
+
+<span class="sd">    ``priors`` are the user's priors as `strider.Model.classify_many` takes them, and ``source`` describes the input:</span>
+<span class="sd">    its ``path`` and ``sha256``, the ``only`` objects chosen from it, and the ``columns``, ``wavelength_unit`` and</span>
+<span class="sd">    ``flux_density`` it was read with. The ``settings_fingerprint`` covers the model, the STRIDER and schema versions</span>
+<span class="sd">    and the settings, not the input, the job or the environment.</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">__version__</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.io</span><span class="w"> </span><span class="kn">import</span> <span class="n">SCHEMA_VERSION</span>
+
+    <span class="n">priors</span><span class="p">,</span> <span class="n">source</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">priors</span> <span class="ow">or</span> <span class="p">{}),</span> <span class="nb">dict</span><span class="p">(</span><span class="n">source</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="n">classes</span> <span class="o">=</span> <span class="n">priors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"classes"</span><span class="p">)</span>
+    <span class="n">redshift_prior</span> <span class="o">=</span> <span class="n">priors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"redshift_prior"</span><span class="p">)</span>
+    <span class="n">settings</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"strider_version"</span><span class="p">:</span> <span class="n">__version__</span><span class="p">,</span>
+        <span class="s2">"schema_version"</span><span class="p">:</span> <span class="n">SCHEMA_VERSION</span><span class="p">,</span>
+        <span class="s2">"model"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="s2">"fingerprint"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">fingerprint</span><span class="p">,</span>
+        <span class="s2">"package_sha256"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">files_sha256</span><span class="p">,</span>
+        <span class="s2">"scan"</span><span class="p">:</span> <span class="n">model</span><span class="o">.</span><span class="n">scan</span><span class="p">,</span>
+        <span class="s2">"classes"</span><span class="p">:</span> <span class="p">[</span><span class="n">classes</span><span class="p">]</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">classes</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">classes</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">classes</span><span class="p">),</span>
+        <span class="s2">"class_prior"</span><span class="p">:</span> <span class="n">priors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"class_prior"</span><span class="p">),</span>
+        <span class="s2">"redshift_range"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">priors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"redshift_range"</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">priors</span><span class="p">[</span><span class="s2">"redshift_range"</span><span class="p">]),</span>
+        <span class="s2">"redshift_prior_sha256"</span><span class="p">:</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">redshift_prior</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">redshift_prior</span><span class="p">,</span> <span class="s2">"&lt;f8"</span><span class="p">)</span><span class="o">.</span><span class="n">tobytes</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+        <span class="s2">"host_redshift_outlier"</span><span class="p">:</span> <span class="n">priors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"host_redshift_outlier"</span><span class="p">),</span>
+        <span class="s2">"error_scale"</span><span class="p">:</span> <span class="n">error_scale</span><span class="p">,</span>
+        <span class="s2">"light_curve_errors"</span><span class="p">:</span> <span class="n">light_curve_errors</span><span class="p">,</span>
+        <span class="s2">"max_spectra"</span><span class="p">:</span> <span class="n">max_spectra</span><span class="p">,</span>
+        <span class="s2">"columns"</span><span class="p">:</span> <span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"columns"</span><span class="p">),</span>
+        <span class="s2">"wavelength_unit"</span><span class="p">:</span> <span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"wavelength_unit"</span><span class="p">,</span> <span class="s2">"angstrom"</span><span class="p">),</span>
+        <span class="s2">"flux_density"</span><span class="p">:</span> <span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"flux_density"</span><span class="p">,</span> <span class="s2">"f_lambda"</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="n">only</span> <span class="o">=</span> <span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"only"</span><span class="p">)</span>
+    <span class="n">started</span> <span class="o">=</span> <span class="n">_now</span><span class="p">()</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"format"</span><span class="p">:</span> <span class="n">RUN_FORMAT</span><span class="p">,</span>
+        <span class="s2">"run_id"</span><span class="p">:</span> <span class="n">uuid</span><span class="o">.</span><span class="n">uuid4</span><span class="p">()</span><span class="o">.</span><span class="n">hex</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"incomplete"</span><span class="p">,</span>
+        <span class="s2">"settings"</span><span class="p">:</span> <span class="n">settings</span><span class="p">,</span>
+        <span class="s2">"settings_fingerprint"</span><span class="p">:</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">_canonical</span><span class="p">(</span><span class="n">settings</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">(),</span>
+        <span class="s2">"input"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"path"</span><span class="p">:</span> <span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"path"</span><span class="p">),</span>
+            <span class="s2">"sha256"</span><span class="p">:</span> <span class="n">source</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sha256"</span><span class="p">),</span>
+            <span class="s2">"only"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">only</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">only</span><span class="p">),</span>
+        <span class="p">},</span>
+        <span class="s2">"job"</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">job</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">checked_job</span><span class="p">(</span><span class="n">job</span><span class="p">)),</span>
+        <span class="s2">"started"</span><span class="p">:</span> <span class="n">started</span><span class="p">,</span>
+        <span class="s2">"sessions"</span><span class="p">:</span> <span class="p">[{</span><span class="s2">"started"</span><span class="p">:</span> <span class="n">started</span><span class="p">,</span> <span class="s2">"environment"</span><span class="p">:</span> <span class="n">environment</span><span class="p">(</span><span class="n">workers</span><span class="p">)}],</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">environment</span><span class="p">(</span><span class="n">workers</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The versions and machine a session used, and its workers and the threads each ran. They can change results</span>
+<span class="sd">    within rounding, so they are recorded."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">scipy</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"python"</span><span class="p">:</span> <span class="n">platform</span><span class="o">.</span><span class="n">python_version</span><span class="p">(),</span>
+        <span class="s2">"numpy"</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">__version__</span><span class="p">,</span>
+        <span class="s2">"scipy"</span><span class="p">:</span> <span class="n">scipy</span><span class="o">.</span><span class="n">__version__</span><span class="p">,</span>
+        <span class="s2">"torch"</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">__version__</span><span class="p">,</span>
+        <span class="s2">"workers"</span><span class="p">:</span> <span class="n">workers</span><span class="p">,</span>
+        <span class="s2">"threads"</span><span class="p">:</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">workers</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_num_threads</span><span class="p">(),</span>  <span class="c1"># workers run on one thread each</span>
+        <span class="s2">"platform"</span><span class="p">:</span> <span class="n">platform</span><span class="o">.</span><span class="n">platform</span><span class="p">(),</span>
+    <span class="p">}</span>
+
+
+<div class="viewcode-block" id="checked_job">
+<a class="viewcode-back" href="../../api/strider.runs.checked_job.html#strider.runs.checked_job">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">checked_job</span><span class="p">(</span><span class="n">job</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""A job as (k, n), job k of n, from a pair or the text ``k/n``, with n ≥ 1 and 0 ≤ k &lt; n."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">k</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">part</span><span class="p">)</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">job</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="k">else</span> <span class="n">job</span><span class="p">))</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">TypeError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"a job is K/N, such as 0/4, not </span><span class="si">{</span><span class="n">job</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">n</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">k</span> <span class="o">&lt;</span> <span class="n">n</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"a job K/N needs N of at least 1 and K from 0 to N - 1, not </span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">k</span><span class="p">,</span> <span class="n">n</span></div>
+
+
+
+<div class="viewcode-block" id="in_job">
+<a class="viewcode-back" href="../../api/strider.runs.in_job.html#strider.runs.in_job">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">in_job</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">job</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Whether object ``key`` falls to ``job`` (k, n): the first 16 hex digits of the sha256 of its id as UTF-8</span>
+<span class="sd">    text, modulo n, are k. It depends on the id alone, so the jobs share an input the same way on any machine and in</span>
+<span class="sd">    any input order."""</span>
+    <span class="n">k</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">job</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()[:</span><span class="mi">16</span><span class="p">],</span> <span class="mi">16</span><span class="p">)</span> <span class="o">%</span> <span class="n">n</span> <span class="o">==</span> <span class="n">k</span></div>
+
+
+
+<div class="viewcode-block" id="read_record">
+<a class="viewcode-back" href="../../api/strider.runs.read_record.html#strider.runs.read_record">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">read_record</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The record of the run that wrote a parquet file of results."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+    <span class="n">metadata</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">metadata</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">RECORD_KEY</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">metadata</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> has no record of its run; it was not written by STRIDER 0.2 or later"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">metadata</span><span class="p">[</span><span class="n">RECORD_KEY</span><span class="p">])</span></div>
+
+
+
+<div class="viewcode-block" id="summary">
+<a class="viewcode-back" href="../../api/strider.runs.summary.html#strider.runs.summary">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">summary</span><span class="p">(</span><span class="n">tables</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""What tables of results hold, together: how many objects, by status, warning code and light-curve error check,</span>
+<span class="sd">    and what they took where it was measured (seconds per object, CPU seconds and the most memory a process used;</span>
+<span class="sd">    None if none was, as for transients scored together on a GPU). The tables need only `SUMMARY_COLUMNS`."""</span>
+    <span class="n">objects</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">codes</span><span class="p">,</span> <span class="n">checks</span><span class="p">,</span> <span class="n">seconds</span><span class="p">,</span> <span class="n">cpu</span><span class="p">,</span> <span class="n">memory</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="p">{},</span> <span class="p">{},</span> <span class="p">{},</span> <span class="p">[],</span> <span class="p">[],</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">count</span><span class="p">(</span><span class="n">found</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">found</span><span class="p">[</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">found</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="k">for</span> <span class="n">table</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">SUMMARY_COLUMNS</span><span class="p">))</span><span class="o">.</span><span class="n">to_pydict</span><span class="p">()</span>
+        <span class="n">objects</span> <span class="o">+=</span> <span class="n">table</span><span class="o">.</span><span class="n">num_rows</span>
+        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]:</span>
+            <span class="n">count</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">found</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[</span><span class="s2">"warning_codes"</span><span class="p">]:</span>
+            <span class="k">for</span> <span class="n">code</span> <span class="ow">in</span> <span class="n">found</span> <span class="ow">or</span> <span class="p">[]:</span>
+                <span class="n">count</span><span class="p">(</span><span class="n">codes</span><span class="p">,</span> <span class="n">code</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[</span><span class="s2">"light_curve_check"</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">value</span><span class="p">:</span>
+                <span class="n">count</span><span class="p">(</span><span class="n">checks</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="n">seconds</span> <span class="o">+=</span> <span class="p">[</span><span class="n">value</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[</span><span class="s2">"seconds"</span><span class="p">]</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="n">cpu</span> <span class="o">+=</span> <span class="p">[</span><span class="n">value</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[</span><span class="s2">"cpu_seconds"</span><span class="p">]</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="n">memory</span> <span class="o">+=</span> <span class="p">[</span><span class="n">value</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">[</span><span class="s2">"peak_memory_mb"</span><span class="p">]</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="n">seconds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">seconds</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+    <span class="n">measured</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">seconds</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s2">"objects"</span><span class="p">:</span> <span class="n">objects</span><span class="p">,</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">status</span><span class="o">.</span><span class="n">items</span><span class="p">())),</span>
+        <span class="s2">"warning_codes"</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">codes</span><span class="o">.</span><span class="n">items</span><span class="p">())),</span>
+        <span class="s2">"light_curve_check"</span><span class="p">:</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">checks</span><span class="o">.</span><span class="n">items</span><span class="p">())),</span>
+        <span class="s2">"seconds_per_object"</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">"measured"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">seconds</span><span class="p">),</span>
+            <span class="s2">"total"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">seconds</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="k">if</span> <span class="n">measured</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">"median"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">seconds</span><span class="p">))</span> <span class="k">if</span> <span class="n">measured</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">"p90"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">seconds</span><span class="p">,</span> <span class="mi">90</span><span class="p">))</span> <span class="k">if</span> <span class="n">measured</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s2">"max"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">seconds</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="k">if</span> <span class="n">measured</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="s2">"cpu_seconds"</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">cpu</span><span class="p">))</span> <span class="k">if</span> <span class="n">cpu</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"largest_memory_mb"</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">memory</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">),</span>
+    <span class="p">}</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_now</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(</span><span class="n">UTC</span><span class="p">)</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(</span><span class="n">timespec</span><span class="o">=</span><span class="s2">"seconds"</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_canonical</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">sort_keys</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">separators</span><span class="o">=</span><span class="p">(</span><span class="s2">","</span><span class="p">,</span> <span class="s2">":"</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_with_record</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">table</span><span class="o">.</span><span class="n">replace_schema_metadata</span><span class="p">((</span><span class="n">table</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">metadata</span> <span class="ow">or</span> <span class="p">{})</span> <span class="o">|</span> <span class="p">{</span><span class="n">RECORD_KEY</span><span class="p">:</span> <span class="n">_canonical</span><span class="p">(</span><span class="n">record</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">()})</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_durable_replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">final</span><span class="p">:</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Flush ``temporary`` to disk, rename it to ``final``, and flush the folder, so a crash leaves one or the</span>
+<span class="sd">    other, whole. A failure to flush is an error."""</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">written</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">fsync</span><span class="p">(</span><span class="n">written</span><span class="o">.</span><span class="n">fileno</span><span class="p">())</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">final</span><span class="p">)</span>
+    <span class="n">_flush_folder</span><span class="p">(</span><span class="n">final</span><span class="o">.</span><span class="n">parent</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flush_folder</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Flush a folder's entries to disk, where the platform and file system can."""</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"nt"</span><span class="p">:</span>  <span class="c1"># Windows cannot open a folder to flush it</span>
+        <span class="k">return</span>
+    <span class="n">descriptor</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">O_RDONLY</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">fsync</span><span class="p">(</span><span class="n">descriptor</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">error</span><span class="o">.</span><span class="n">errno</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">errno</span><span class="o">.</span><span class="n">EINVAL</span><span class="p">,</span> <span class="n">errno</span><span class="o">.</span><span class="n">ENOTSUP</span><span class="p">,</span> <span class="n">errno</span><span class="o">.</span><span class="n">EOPNOTSUPP</span><span class="p">):</span>  <span class="c1"># a file system that cannot</span>
+            <span class="k">raise</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">descriptor</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">Parts</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""The parts folder of a run writing ``path``, a parquet file: locked while open, written a whole part at a time,</span>
+<span class="sd">    and joined into ``path`` when the run is done.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    path : path-like</span>
+<span class="sd">        The parquet file the run writes.</span>
+<span class="sd">    schema : pyarrow.Schema</span>
+<span class="sd">        The results schema, for joining a run with no rows.</span>
+<span class="sd">    record : dict</span>
+<span class="sd">        The run's record (`run_record`).</span>
+<span class="sd">    resume : bool</span>
+<span class="sd">        Carry on from the parts of a run that stopped, if its record allows it; with none, start the run.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">schema</span><span class="p">,</span> <span class="n">record</span><span class="p">,</span> <span class="n">resume</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">schema</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="n">schema</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">folder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".parts"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="n">done</span> <span class="o">=</span> <span class="s2">" (its run is complete)"</span> <span class="k">if</span> <span class="n">resume</span> <span class="k">else</span> <span class="s2">""</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2"> exists already</span><span class="si">{</span><span class="n">done</span><span class="si">}</span><span class="s2">; write to another file, or remove it first"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">resume</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="si">}</span><span class="s2"> is left from a run that stopped: resume it (resume=True, --resume), or remove it"</span>
+            <span class="p">)</span>
+        <span class="n">created</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="o">.</span><span class="n">exists</span><span class="p">(),</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">exist_ok</span><span class="o">=</span><span class="n">resume</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">FileExistsError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"another run started writing </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="si">}</span><span class="s2">; write to another output"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="o">=</span> <span class="n">_locked</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span> <span class="o">/</span> <span class="s2">"_lock"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>  <span class="c1"># another run finished while this one waited to start</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="si">}</span><span class="s2"> exists already (its run is complete); write to another file"</span><span class="p">)</span>
+            <span class="n">saved</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">folder</span> <span class="o">/</span> <span class="s2">"_record.json"</span>
+            <span class="k">if</span> <span class="n">resume</span> <span class="ow">and</span> <span class="n">saved</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="n">_resumable</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">saved</span><span class="o">.</span><span class="n">read_text</span><span class="p">()),</span> <span class="n">record</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">=</span> <span class="n">record</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_write_text</span><span class="p">(</span><span class="n">saved</span><span class="p">,</span> <span class="n">_canonical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">left</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"_*.tmp"</span><span class="p">):</span>  <span class="c1"># parts a stopped run was writing</span>
+                <span class="n">left</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">saved</span><span class="p">,</span> <span class="n">numbers</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parts</span><span class="p">():</span>
+                <span class="n">numbers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">part</span><span class="o">.</span><span class="n">stem</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"-"</span><span class="p">)[</span><span class="mi">1</span><span class="p">]))</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">saved</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_fingerprints</span><span class="p">(</span><span class="n">part</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">numbers</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">except</span> <span class="ne">BaseException</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">created</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">RunBusy</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parts</span><span class="p">():</span>  <span class="c1"># a folder this run made, unused</span>
+                <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="k">raise</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Save one part, whole."""</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+        <span class="n">final</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">folder</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">"part-</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="si">:</span><span class="s2">06d</span><span class="si">}</span><span class="s2">.parquet"</span>
+        <span class="n">temporary</span> <span class="o">=</span> <span class="n">final</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="sa">f</span><span class="s2">"_</span><span class="si">{</span><span class="n">final</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.tmp"</span><span class="p">)</span>
+        <span class="n">pq</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">_with_record</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">record</span><span class="p">),</span> <span class="n">temporary</span><span class="p">)</span>
+        <span class="n">_durable_replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">final</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">finish</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seen</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Join the parts into the run's file, a part at a time, and remove them, holding the folder throughout.</span>
+<span class="sd">        ``seen`` are the ids of this run's input; a part that holds another object means the input changed, and</span>
+<span class="sd">        nothing is joined."""</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">expected</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">saved</span><span class="p">)</span> <span class="k">if</span> <span class="n">seen</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="p">{</span><span class="nb">str</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">}</span>
+            <span class="n">others</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">saved</span><span class="p">)</span> <span class="o">-</span> <span class="n">expected</span>
+            <span class="k">if</span> <span class="n">others</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="si">}</span><span class="s2"> holds results for </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">others</span><span class="p">)</span><span class="si">}</span><span class="s2"> objects that are not in this input, such as "</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">others</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">: the input changed since the run stopped; write to a new output"</span>
+                <span class="p">)</span>
+            <span class="n">parts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parts</span><span class="p">()</span>
+            <span class="n">found</span> <span class="o">=</span> <span class="n">summary</span><span class="p">(</span><span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="n">SUMMARY_COLUMNS</span><span class="p">))</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">)</span>
+            <span class="n">record</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">record</span> <span class="o">|</span> <span class="p">{</span><span class="s2">"status"</span><span class="p">:</span> <span class="s2">"complete"</span><span class="p">,</span> <span class="s2">"finished"</span><span class="p">:</span> <span class="n">_now</span><span class="p">(),</span> <span class="s2">"summary"</span><span class="p">:</span> <span class="n">found</span><span class="p">}</span>
+            <span class="n">temporary</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".tmp"</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">_with_record</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">schema</span><span class="o">.</span><span class="n">empty_table</span><span class="p">(),</span> <span class="n">record</span><span class="p">)</span><span class="o">.</span><span class="n">schema</span><span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">:</span>
+                    <span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">part</span><span class="p">))</span>
+            <span class="n">_durable_replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="p">)</span>  <span class="c1"># still locked, so no other run can start in it meanwhile</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Release the folder, keeping its parts."""</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="o">.</span><span class="n">closed</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_parts</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">folder</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"part-*.parquet"</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_write_text</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+        <span class="n">temporary</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">.tmp"</span><span class="p">)</span>
+        <span class="n">temporary</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="n">_durable_replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RunBusy</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Another run, or merge, holds the folder."""</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_locked</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""``path`` opened and locked for this process alone; another process that tries is refused at once. The lock</span>
+<span class="sd">    goes when the file is closed or the process ends, however it ends. Where there are no file locks, as on Windows, a</span>
+<span class="sd">    run is refused."""</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">fcntl</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">"a .parquet run needs file locks, which this platform lacks; write the results to a .csv or .json file"</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="n">lock</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">"a"</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">fcntl</span><span class="o">.</span><span class="n">flock</span><span class="p">(</span><span class="n">lock</span><span class="p">,</span> <span class="n">fcntl</span><span class="o">.</span><span class="n">LOCK_EX</span> <span class="o">|</span> <span class="n">fcntl</span><span class="o">.</span><span class="n">LOCK_NB</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">BlockingIOError</span><span class="p">:</span>
+        <span class="n">lock</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="n">RunBusy</span><span class="p">(</span><span class="sa">f</span><span class="s2">"another run is writing </span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">; wait for it, or write to another output"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="n">lock</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"cannot lock </span><span class="si">{</span><span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">); its file system needs to support file locks"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="k">return</span> <span class="n">lock</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resumable</span><span class="p">(</span><span class="n">saved</span><span class="p">,</span> <span class="n">current</span><span class="p">,</span> <span class="n">folder</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The stopped run's record with this session added, if this run may carry it on: the same STRIDER version,</span>
+<span class="sd">    model, settings, job, input file and selection. Another environment is allowed, with a warning, as it changes</span>
+<span class="sd">    results only within rounding."""</span>
+    <span class="n">checks</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="p">(</span><span class="s2">"the STRIDER version"</span><span class="p">,</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"settings"</span><span class="p">][</span><span class="s2">"strider_version"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"settings"</span><span class="p">][</span><span class="s2">"strider_version"</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"the model package"</span><span class="p">,</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"settings"</span><span class="p">][</span><span class="s2">"package_sha256"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"settings"</span><span class="p">][</span><span class="s2">"package_sha256"</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"the brightness scan"</span><span class="p">,</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"settings"</span><span class="p">][</span><span class="s2">"scan"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"settings"</span><span class="p">][</span><span class="s2">"scan"</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"the settings"</span><span class="p">,</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"settings_fingerprint"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"settings_fingerprint"</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"the job"</span><span class="p">,</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"job"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"job"</span><span class="p">]),</span>
+        <span class="p">(</span><span class="s2">"the objects chosen"</span><span class="p">,</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"only"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"only"</span><span class="p">]),</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">there</span><span class="p">,</span> <span class="n">here</span> <span class="ow">in</span> <span class="n">checks</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">there</span> <span class="o">!=</span> <span class="n">here</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"cannot resume </span><span class="si">{</span><span class="n">folder</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> changed since it stopped (</span><span class="si">{</span><span class="n">there</span><span class="si">}</span><span class="s2"> then, </span><span class="si">{</span><span class="n">here</span><span class="si">}</span><span class="s2"> now); write to a "</span>
+                <span class="s2">"new output"</span>
+            <span class="p">)</span>
+    <span class="n">then</span><span class="p">,</span> <span class="n">now</span> <span class="o">=</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"sha256"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"sha256"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">then</span> <span class="o">!=</span> <span class="n">now</span><span class="p">:</span>
+        <span class="n">why</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s2">"the input file changed since the run stopped"</span>
+            <span class="k">if</span> <span class="kc">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">then</span><span class="p">,</span> <span class="n">now</span><span class="p">)</span>
+            <span class="k">else</span> <span class="p">(</span>
+                <span class="s2">"the stopped run recorded its input file, and this run gives none (give source=)"</span>
+                <span class="k">if</span> <span class="n">now</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="s2">"the stopped run did not record its input file"</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"cannot resume </span><span class="si">{</span><span class="n">folder</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">why</span><span class="si">}</span><span class="s2">; write to a new output"</span><span class="p">)</span>
+    <span class="n">then</span><span class="p">,</span> <span class="n">now</span> <span class="o">=</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"sessions"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"environment"</span><span class="p">],</span> <span class="n">current</span><span class="p">[</span><span class="s2">"sessions"</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"environment"</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">then</span> <span class="o">!=</span> <span class="n">now</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="sa">f</span><span class="s2">"resuming </span><span class="si">{</span><span class="n">folder</span><span class="si">}</span><span class="s2"> in another environment: </span><span class="si">{</span><span class="n">then</span><span class="si">}</span><span class="s2"> then, </span><span class="si">{</span><span class="n">now</span><span class="si">}</span><span class="s2"> now"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">saved</span> <span class="o">|</span> <span class="p">{</span><span class="s2">"sessions"</span><span class="p">:</span> <span class="n">saved</span><span class="p">[</span><span class="s2">"sessions"</span><span class="p">]</span> <span class="o">+</span> <span class="n">current</span><span class="p">[</span><span class="s2">"sessions"</span><span class="p">]}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_fingerprints</span><span class="p">(</span><span class="n">part</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""The object ids in a part, each with its input fingerprint."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+    <span class="n">table</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">read_table</span><span class="p">(</span><span class="n">part</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s2">"object_id"</span><span class="p">,</span> <span class="s2">"input_fingerprint"</span><span class="p">])</span>
+    <span class="k">return</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s2">"object_id"</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">(),</span> <span class="n">table</span><span class="o">.</span><span class="n">column</span><span class="p">(</span><span class="s2">"input_fingerprint"</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">()))</span>
+
+
+<div class="viewcode-block" id="merge">
+<a class="viewcode-back" href="../../api/strider.runs.merge.html#strider.runs.merge">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">merge</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">partial</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Join the results files of a run's jobs into one, a batch of rows at a time.</span>
+
+<span class="sd">    Every file must come from the same model, settings, input file and selection of objects, and the jobs must be</span>
+<span class="sd">    complete: each of 0 to N - 1 once, of a run whose input file is recorded, unless ``partial``. An object in two</span>
+<span class="sd">    files must have the same results there (its time and memory aside); it is kept once, from the lowest job.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        The merged file's record.</span>
+<span class="sd">    """</span>
+    <span class="n">paths</span><span class="p">,</span> <span class="n">output</span> <span class="o">=</span> <span class="p">[</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">],</span> <span class="n">Path</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2"> exists already; merge into another file, or remove it first"</span><span class="p">)</span>
+    <span class="n">folder</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".parts"</span><span class="p">)</span>  <span class="c1"># held while merging, as a run holds it</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">folder</span><span class="o">.</span><span class="n">mkdir</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">FileExistsError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">RunBusy</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">folder</span><span class="si">}</span><span class="s2"> exists: another run or merge is writing </span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="n">lock</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">lock</span> <span class="o">=</span> <span class="n">_locked</span><span class="p">(</span><span class="n">folder</span> <span class="o">/</span> <span class="s2">"_lock"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">output</span><span class="si">}</span><span class="s2"> exists already; merge into another file, or remove it first"</span><span class="p">)</span>
+        <span class="n">record</span> <span class="o">=</span> <span class="n">_merged</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">partial</span><span class="p">)</span>
+        <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span>  <span class="c1"># still locked</span>
+    <span class="k">except</span> <span class="ne">BaseException</span> <span class="k">as</span> <span class="n">error</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">error</span><span class="p">,</span> <span class="n">RunBusy</span><span class="p">):</span>  <span class="c1"># a busy folder is another writer's now: leave it</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="n">folder</span><span class="p">,</span> <span class="n">ignore_errors</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">raise</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">lock</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lock</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">record</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_merged</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">partial</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""`merge`'s work, its output already held."""</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pa</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">pyarrow.parquet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pq</span>
+
+    <span class="n">records</span> <span class="o">=</span> <span class="p">[</span><span class="n">read_record</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">paths</span><span class="p">]</span>
+    <span class="n">first</span> <span class="o">=</span> <span class="n">records</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">record</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">records</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">record</span><span class="p">[</span><span class="s2">"status"</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">"complete"</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> is from a run that did not finish"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">record</span><span class="p">[</span><span class="s2">"settings_fingerprint"</span><span class="p">]</span> <span class="o">!=</span> <span class="n">first</span><span class="p">[</span><span class="s2">"settings_fingerprint"</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> was run with other settings or another model than </span><span class="si">{</span><span class="n">paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">record</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"sha256"</span><span class="p">],</span> <span class="n">record</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"only"</span><span class="p">])</span> <span class="o">!=</span> <span class="p">(</span><span class="n">first</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"sha256"</span><span class="p">],</span> <span class="n">first</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"only"</span><span class="p">]):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> was run on another input file, or other objects of it, than </span><span class="si">{</span><span class="n">paths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="n">jobs</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">record</span><span class="p">[</span><span class="s2">"job"</span><span class="p">]</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">)</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="p">{</span><span class="n">n</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">jobs</span><span class="p">}</span>
+    <span class="n">each_once</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">counts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">jobs</span><span class="p">]</span> <span class="o">==</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">counts</span><span class="o">.</span><span class="n">pop</span><span class="p">()))</span>
+    <span class="n">complete</span> <span class="o">=</span> <span class="n">each_once</span> <span class="ow">and</span> <span class="n">first</span><span class="p">[</span><span class="s2">"input"</span><span class="p">][</span><span class="s2">"sha256"</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">complete</span> <span class="ow">or</span> <span class="n">partial</span><span class="p">):</span>
+        <span class="n">why</span> <span class="o">=</span> <span class="s2">"are not each of one run's once"</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">each_once</span> <span class="k">else</span> <span class="s2">"come from a run whose input file is not recorded"</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"the jobs given, </span><span class="si">{</span><span class="s1">', '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s1">'</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s1">/</span><span class="si">{</span><span class="n">n</span><span class="si">}</span><span class="s1">'</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">jobs</span><span class="p">)</span><span class="si">}</span><span class="s2">, </span><span class="si">{</span><span class="n">why</span><span class="si">}</span><span class="s2">; or give partial"</span><span class="p">)</span>
+    <span class="n">ordered</span> <span class="o">=</span> <span class="p">[</span><span class="n">path</span> <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">paths</span><span class="p">,</span> <span class="n">records</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">pair</span><span class="p">:</span> <span class="n">pair</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="s2">"job"</span><span class="p">]</span> <span class="ow">or</span> <span class="p">[</span><span class="mi">0</span><span class="p">])]</span>
+    <span class="n">kept</span><span class="p">,</span> <span class="n">chosen</span><span class="p">,</span> <span class="n">summaries</span> <span class="o">=</span> <span class="p">{},</span> <span class="p">[],</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">:</span>  <span class="c1"># which rows to keep, and what they hold</span>
+        <span class="n">source</span><span class="p">,</span> <span class="n">masks</span> <span class="o">=</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">path</span><span class="p">),</span> <span class="p">[]</span>
+        <span class="n">science</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">schema_arrow</span><span class="o">.</span><span class="n">names</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">RUN_COLUMNS</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">source</span><span class="o">.</span><span class="n">iter_batches</span><span class="p">(</span><span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">):</span>
+            <span class="n">rows</span><span class="p">,</span> <span class="n">keep</span> <span class="o">=</span> <span class="n">batch</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">science</span><span class="p">)</span><span class="o">.</span><span class="n">to_pylist</span><span class="p">(),</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">rows</span><span class="p">:</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">"object_id"</span><span class="p">]</span>
+                <span class="n">found</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">_canonical</span><span class="p">(</span><span class="n">row</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>  <span class="c1"># NaN equals NaN here</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">kept</span> <span class="ow">and</span> <span class="n">kept</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">!=</span> <span class="n">found</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"object </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> has different results in two of the files"</span><span class="p">)</span>
+                <span class="n">keep</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kept</span><span class="p">)</span>
+                <span class="n">kept</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">found</span><span class="p">)</span>
+            <span class="n">masks</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">keep</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">))</span>
+            <span class="n">summaries</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_batches</span><span class="p">([</span><span class="n">batch</span><span class="p">])</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">SUMMARY_COLUMNS</span><span class="p">))</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">masks</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="n">chosen</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">masks</span><span class="p">)</span>
+    <span class="n">record</span> <span class="o">=</span> <span class="n">first</span> <span class="o">|</span> <span class="p">{</span>
+        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"complete"</span> <span class="k">if</span> <span class="n">complete</span> <span class="k">else</span> <span class="s2">"partial"</span><span class="p">,</span>
+        <span class="s2">"job"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="s2">"jobs"</span><span class="p">:</span> <span class="p">[</span><span class="nb">list</span><span class="p">(</span><span class="n">job</span><span class="p">)</span> <span class="k">for</span> <span class="n">job</span> <span class="ow">in</span> <span class="n">jobs</span><span class="p">],</span>
+        <span class="s2">"sessions"</span><span class="p">:</span> <span class="p">[</span><span class="n">session</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span> <span class="k">for</span> <span class="n">session</span> <span class="ow">in</span> <span class="n">record</span><span class="p">[</span><span class="s2">"sessions"</span><span class="p">]],</span>
+        <span class="s2">"started"</span><span class="p">:</span> <span class="nb">min</span><span class="p">(</span><span class="n">record</span><span class="p">[</span><span class="s2">"started"</span><span class="p">]</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">),</span>
+        <span class="s2">"finished"</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">record</span><span class="p">[</span><span class="s2">"finished"</span><span class="p">]</span> <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">records</span><span class="p">),</span>
+        <span class="s2">"summary"</span><span class="p">:</span> <span class="n">summary</span><span class="p">(</span><span class="n">summaries</span><span class="p">),</span>
+    <span class="p">}</span>
+    <span class="n">schema</span> <span class="o">=</span> <span class="n">_with_record</span><span class="p">(</span><span class="n">pq</span><span class="o">.</span><span class="n">read_schema</span><span class="p">(</span><span class="n">ordered</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">empty_table</span><span class="p">(),</span> <span class="n">record</span><span class="p">)</span><span class="o">.</span><span class="n">schema</span>
+    <span class="n">temporary</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">".tmp"</span><span class="p">)</span>
+    <span class="k">with</span> <span class="n">pq</span><span class="o">.</span><span class="n">ParquetWriter</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">schema</span><span class="p">)</span> <span class="k">as</span> <span class="n">writer</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">path</span><span class="p">,</span> <span class="n">masks</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">ordered</span><span class="p">,</span> <span class="n">chosen</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">batch</span><span class="p">,</span> <span class="n">mask</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">pq</span><span class="o">.</span><span class="n">ParquetFile</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">iter_batches</span><span class="p">(</span><span class="n">batch_size</span><span class="o">=</span><span class="mi">1024</span><span class="p">),</span> <span class="n">masks</span><span class="p">):</span>
+                <span class="n">writer</span><span class="o">.</span><span class="n">write_table</span><span class="p">(</span><span class="n">pa</span><span class="o">.</span><span class="n">Table</span><span class="o">.</span><span class="n">from_batches</span><span class="p">([</span><span class="n">batch</span><span class="p">])</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">mask</span><span class="p">))</span>
+    <span class="n">_durable_replace</span><span class="p">(</span><span class="n">temporary</span><span class="p">,</span> <span class="n">output</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">record</span>
+</pre></div>
+
+          </div>
+              <div class="related bottom">
+                &nbsp;
+  <nav id="rellinks">
+    <ul>
+    </ul>
+  </nav>
+              </div>
+          
+        </div>
+      </div>
+    <div class="clearer"></div>
+  </div>
+    <div class="footer">
+      &#169;2026, Roman Supernova PIT.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 9.1.1</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

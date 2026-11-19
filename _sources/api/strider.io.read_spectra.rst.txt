@@ -1,0 +1,6 @@
+read_spectra
+============
+
+.. currentmodule:: strider.io
+
+.. autofunction:: read_spectra

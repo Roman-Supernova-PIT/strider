@@ -1,0 +1,6 @@
+merge
+=====
+
+.. currentmodule:: strider.runs
+
+.. autofunction:: merge

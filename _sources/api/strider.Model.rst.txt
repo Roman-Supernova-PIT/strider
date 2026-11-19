@@ -1,0 +1,35 @@
+Model
+=====
+
+.. currentmodule:: strider
+
+.. autoclass:: Model
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~Model.scan
+
+   .. rubric:: Methods Summary
+
+   .. autosummary::
+
+      ~Model.classify
+      ~Model.classify_first
+      ~Model.classify_many
+      ~Model.from_package
+      ~Model.plot_accumulation
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: scan
+
+   .. rubric:: Methods Documentation
+
+   .. automethod:: classify
+   .. automethod:: classify_first
+   .. automethod:: classify_many
+   .. automethod:: from_package
+   .. automethod:: plot_accumulation

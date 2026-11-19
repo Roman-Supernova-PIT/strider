@@ -1,0 +1,6 @@
+input_fingerprint
+=================
+
+.. currentmodule:: strider.io
+
+.. autofunction:: input_fingerprint

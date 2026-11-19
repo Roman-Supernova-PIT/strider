@@ -1,0 +1,6 @@
+in_job
+======
+
+.. currentmodule:: strider.runs
+
+.. autofunction:: in_job

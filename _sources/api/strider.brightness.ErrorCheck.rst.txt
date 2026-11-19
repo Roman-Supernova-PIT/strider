@@ -1,0 +1,25 @@
+ErrorCheck
+==========
+
+.. currentmodule:: strider.brightness
+
+.. autoclass:: ErrorCheck
+   :show-inheritance:
+
+   .. rubric:: Attributes Summary
+
+   .. autosummary::
+
+      ~ErrorCheck.measured
+      ~ErrorCheck.points
+      ~ErrorCheck.scale
+      ~ErrorCheck.scatter
+      ~ErrorCheck.scatter_squared_se
+
+   .. rubric:: Attributes Documentation
+
+   .. autoattribute:: measured
+   .. autoattribute:: points
+   .. autoattribute:: scale
+   .. autoattribute:: scatter
+   .. autoattribute:: scatter_squared_se
